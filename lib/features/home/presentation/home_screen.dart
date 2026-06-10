@@ -16,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = 'Homes';
   String _selectedSubPill = 'Popular';
   bool _isRentSelected = false;
+  String _selectedRole = 'Seller';
 
   final List<String> _subPills = ['Popular', 'Type', 'Area Size'];
 
@@ -1378,8 +1379,212 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildCompactPropertyCard(Map<String, dynamic> prop) {
+    Color badgeColor = AppColors.primary;
+    if (prop['badgeType'] == 'Diamond') badgeColor = AppColors.diamond;
+    if (prop['badgeType'] == 'Platinum') badgeColor = AppColors.platinum;
+
+    return GestureDetector(
+      onTap: () => context.pushNamed('details', extra: prop),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image section
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(14),
+                    topRight: Radius.circular(14),
+                  ),
+                  child: CachedNetworkImage(
+                    imageUrl: prop['image'].toString(),
+                    height: 120,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      height: 120,
+                      color: const Color(0xFFF1F5F9),
+                      child: const Center(
+                        child: Icon(Icons.home_outlined, color: AppColors.border, size: 32),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      height: 120,
+                      color: const Color(0xFFF1F5F9),
+                      child: const Icon(Icons.home, color: AppColors.border),
+                    ),
+                  ),
+                ),
+                // Badge
+                if (prop['badgeType'] != 'Regular')
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: badgeColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        prop['badgeType'].toString().toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Purpose
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      prop['purpose'].toString().toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                // Solid Favorite icon (since it is saved)
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withValues(alpha: 0.9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Content section
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Price
+                    Text(
+                      prop['price'].toString(),
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    // Title
+                    Text(
+                      prop['title'].toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        color: AppColors.textMain,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // Location
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_rounded, size: 10, color: AppColors.textMuted),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            prop['location'].toString(),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    // Specs row
+                    Row(
+                      children: [
+                        if (prop.containsKey('beds') && prop['beds'] > 0) ...[
+                          const Icon(Icons.king_bed_outlined, size: 11, color: AppColors.primary),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${prop['beds']}',
+                            style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if (prop.containsKey('baths') && prop['baths'] > 0) ...[
+                          const Icon(Icons.bathtub_outlined, size: 11, color: AppColors.primary),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${prop['baths']}',
+                            style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        const Icon(Icons.zoom_out_map_rounded, size: 11, color: AppColors.primary),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            prop['area'].toString(),
+                            style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFavoritesBody() {
-    final favorites = _properties.take(2).toList();
+    final favorites = _properties.where((p) => p['badgeType'] != 'Regular').toList();
     return SafeArea(
       bottom: false,
       child: Column(
@@ -1444,16 +1649,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : GridView.builder(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 100),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.68,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
                     itemCount: favorites.length,
                     itemBuilder: (context, index) {
-                      final prop = favorites[index];
-                      return GestureDetector(
-                        onTap: () => context.pushNamed('details', extra: prop),
-                        child: _buildPropertyCard(prop),
-                      );
+                      return _buildCompactPropertyCard(favorites[index]);
                     },
                   ),
           ),
@@ -1463,12 +1670,142 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProfileBody() {
+    final roles = ['Buyer', 'Seller', 'Agent', 'Agency Owner', 'Admin'];
+
+    final Map<String, String> roleSubtitles = {
+      'Buyer': 'Premium Home Buyer',
+      'Seller': 'Individual Property Seller',
+      'Agent': 'Certified Landsfy Agent',
+      'Agency Owner': 'Agency Principal Owner',
+      'Admin': 'System Administrator',
+    };
+
+    final Map<String, List<Map<String, dynamic>>> roleStats = {
+      'Buyer': [
+        {'value': '12', 'label': 'Saved Listings', 'icon': Icons.favorite_rounded, 'color': Colors.red},
+        {'value': '04', 'label': 'Search Alerts', 'icon': Icons.notifications_active_rounded, 'color': Colors.amber},
+        {'value': '06', 'label': 'Agents Messaged', 'icon': Icons.contact_mail_rounded, 'color': Colors.teal},
+        {'value': '45', 'label': 'Viewed History', 'icon': Icons.history_rounded, 'color': Colors.blueGrey},
+      ],
+      'Seller': [
+        {'value': '03', 'label': 'Listed Properties', 'icon': Icons.home_rounded, 'color': AppColors.primary},
+        {'value': '1.2k', 'label': 'Total Views', 'icon': Icons.visibility_rounded, 'color': Colors.blue},
+        {'value': '18', 'label': 'Buyer Inquiries', 'icon': Icons.chat_bubble_rounded, 'color': Colors.green},
+        {'value': '05', 'label': 'Closed Deals', 'icon': Icons.handshake_rounded, 'color': Colors.orange},
+      ],
+      'Agent': [
+        {'value': '15', 'label': 'Active Clients', 'icon': Icons.people_alt_rounded, 'color': Colors.indigo},
+        {'value': '08', 'label': 'My Listings', 'icon': Icons.business_center_rounded, 'color': AppColors.primary},
+        {'value': '32', 'label': 'Leads & Inquiries', 'icon': Icons.question_answer_rounded, 'color': Colors.green},
+        {'value': 'PKR 4.5L', 'label': 'Est. Commission', 'icon': Icons.payments_rounded, 'color': Colors.amber},
+      ],
+      'Agency Owner': [
+        {'value': '12', 'label': 'Active Agents', 'icon': Icons.supervised_user_circle_rounded, 'color': Colors.blue},
+        {'value': '48', 'label': 'Agency Listings', 'icon': Icons.home_work_rounded, 'color': AppColors.primary},
+        {'value': '120', 'label': 'Total Leads', 'icon': Icons.campaign_rounded, 'color': Colors.teal},
+        {'value': 'PKR 18.5L', 'label': 'Total Revenue', 'icon': Icons.monetization_on_rounded, 'color': Colors.green},
+      ],
+      'Admin': [
+        {'value': '2,450', 'label': 'Total Users', 'icon': Icons.people_rounded, 'color': Colors.purple},
+        {'value': '14', 'label': 'Pending Approvals', 'icon': Icons.pending_actions_rounded, 'color': Colors.amber},
+        {'value': '1,820', 'label': 'Active Listings', 'icon': Icons.check_circle_rounded, 'color': Colors.green},
+        {'value': '03', 'label': 'Reports Flagged', 'icon': Icons.report_problem_rounded, 'color': Colors.red},
+      ],
+    };
+
+    final Map<String, List<Map<String, dynamic>>> roleActions = {
+      'Buyer': [
+        {'title': 'Saved Searches', 'subtitle': 'Manage your saved search filters', 'icon': Icons.saved_search_rounded},
+        {'title': 'Property Alerts', 'subtitle': 'Manage alert preferences for listings', 'icon': Icons.notifications_active_outlined},
+        {'title': 'My Shortlists', 'subtitle': 'Properties you favorited recently', 'icon': Icons.favorite_outline_rounded},
+        {'title': 'Viewed History', 'subtitle': 'Properties you have visited', 'icon': Icons.history_rounded},
+        {'title': 'Contacted Agents', 'subtitle': 'History of agent conversations', 'icon': Icons.chat_bubble_outline_rounded},
+      ],
+      'Seller': [
+        {'title': 'My Properties', 'subtitle': 'Manage your active listed ads', 'icon': Icons.list_alt_rounded},
+        {'title': 'Post New Property', 'subtitle': 'List a new property for sale/rent', 'icon': Icons.add_circle_outline_rounded},
+        {'title': 'Buyer Leads', 'subtitle': 'View interested buyer contacts', 'icon': Icons.people_rounded},
+        {'title': 'Buyer Inquiries', 'subtitle': 'Direct messages from buyers', 'icon': Icons.forum_rounded},
+        {'title': 'Seller Analytics', 'subtitle': 'Views, clicks and ad performance', 'icon': Icons.analytics_rounded},
+      ],
+      'Agent': [
+        {'title': 'My Listed Properties', 'subtitle': 'Manage properties listed under you', 'icon': Icons.domain_rounded},
+        {'title': 'Client Leads', 'subtitle': 'Manage assigned leads and inquiries', 'icon': Icons.connect_without_contact_rounded},
+        {'title': 'Commission Tracker', 'subtitle': 'Track deals and commissions earned', 'icon': Icons.account_balance_wallet_rounded},
+        {'title': 'Agency Profile', 'subtitle': 'Details of your affiliated agency', 'icon': Icons.corporate_fare_rounded},
+        {'title': 'Agent Subscription', 'subtitle': 'Manage agent package and limits', 'icon': Icons.card_membership_rounded},
+      ],
+      'Agency Owner': [
+        {'title': 'Manage Agents', 'subtitle': 'Add, remove or monitor agency agents', 'icon': Icons.people_outline_rounded},
+        {'title': 'Agency Listings', 'subtitle': 'Manage all properties listed by your agency', 'icon': Icons.apartment_rounded},
+        {'title': 'Analytics Dashboard', 'subtitle': 'Review agency metrics and sales reports', 'icon': Icons.insights_rounded},
+        {'title': 'Subscription Plan', 'subtitle': 'Manage agency features and billing plan', 'icon': Icons.stars_rounded},
+        {'title': 'Company Settings', 'subtitle': 'Configure agency contact and details', 'icon': Icons.settings_applications_rounded},
+      ],
+      'Admin': [
+        {'title': 'Moderation Queue', 'subtitle': 'Review and approve pending listings', 'icon': Icons.rule_folder_rounded},
+        {'title': 'User Management', 'subtitle': 'Approve or block buyers, sellers and agents', 'icon': Icons.manage_accounts_rounded},
+        {'title': 'Property Verification', 'subtitle': 'Verify documents and titles of listings', 'icon': Icons.verified_user_rounded},
+        {'title': 'Global Configuration', 'subtitle': 'Configure system limits and values', 'icon': Icons.admin_panel_settings_rounded},
+        {'title': 'Audit Logs', 'subtitle': 'Monitor administrator and system actions', 'icon': Icons.receipt_long_rounded},
+      ],
+    };
+
+    final currentStats = roleStats[_selectedRole] ?? [];
+    final currentActions = roleActions[_selectedRole] ?? [];
+
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         child: Column(
           children: [
+            // Role Selector Chips
+            Container(
+              color: AppColors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: roles.map((role) {
+                    final isSelected = _selectedRole == role;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedRole = role;
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primarySoft : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected ? AppColors.primary.withValues(alpha: 0.3) : Colors.transparent,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            role,
+                            style: TextStyle(
+                              color: isSelected ? AppColors.primary : AppColors.textMuted,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+
             // Profile Header
             Container(
               width: double.infinity,
@@ -1483,7 +1820,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   bottomRight: Radius.circular(24),
                 ),
               ),
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 30),
               child: Column(
                 children: [
                   Container(
@@ -1501,15 +1838,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ClipOval(
                       child: Image.network(
                         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-                        width: 90,
-                        height: 90,
+                        width: 80,
+                        height: 80,
                         fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Text(
-                    'Amaanullah',
+                    'Uzair Ali',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           color: AppColors.white,
                           fontWeight: FontWeight.w900,
@@ -1518,26 +1855,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'info@amaanullah.com',
+                    'uzair@landsfy.com',
                     style: TextStyle(
                       color: AppColors.white.withValues(alpha: 0.85),
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                     decoration: BoxDecoration(
                       color: AppColors.accent,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'DEVELOPER & PARTNER',
-                      style: TextStyle(
+                    child: Text(
+                      roleSubtitles[_selectedRole]?.toUpperCase() ?? '',
+                      style: const TextStyle(
                         color: AppColors.black,
                         fontWeight: FontWeight.w800,
-                        fontSize: 10,
+                        fontSize: 9,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -1545,7 +1882,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+
+            // Statistics Grid (2x2)
+            if (currentStats.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _buildStatCard(currentStats[0])),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildStatCard(currentStats[1])),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _buildStatCard(currentStats[2])),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildStatCard(currentStats[3])),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
 
             // Profile Options
             Padding(
@@ -1553,41 +1914,37 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Developer Profile',
-                    style: TextStyle(
-                      fontSize: 16,
+                  Text(
+                    '$_selectedRole Panel',
+                    style: const TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textMain,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildProfileTile(
-                    icon: Icons.language_rounded,
-                    title: 'Visit Website',
-                    subtitle: 'amaanullah.com',
-                    onTap: () {},
-                  ),
-                  _buildProfileTile(
-                    icon: Icons.email_rounded,
-                    title: 'Contact Email',
-                    subtitle: 'info@amaanullah.com',
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 24),
+                  ...currentActions.map((act) {
+                    return _buildProfileTile(
+                      icon: act['icon'] as IconData,
+                      title: act['title'].toString(),
+                      subtitle: act['subtitle'].toString(),
+                      onTap: () {},
+                    );
+                  }),
+                  const SizedBox(height: 16),
                   const Text(
                     'Account Preferences',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textMain,
                     ),
                   ),
                   const SizedBox(height: 12),
                   _buildProfileTile(
-                    icon: Icons.home_work_outlined,
-                    title: 'My Listings',
-                    subtitle: 'Manage your active properties',
+                    icon: Icons.manage_accounts_rounded,
+                    title: 'Edit Profile',
+                    subtitle: 'Modify name, phone & account info',
                     onTap: () {},
                   ),
                   _buildProfileTile(
@@ -1620,6 +1977,68 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildStatCard(Map<String, dynamic> stat) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (stat['color'] as Color).withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              stat['icon'] as IconData,
+              color: stat['color'] as Color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  stat['value'].toString(),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  stat['label'].toString(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfileTile({
     required IconData icon,
     required String title,
@@ -1636,22 +2055,22 @@ class _HomeScreenState extends State<HomeScreen> {
         border: Border.all(color: AppColors.border),
       ),
       child: ListTile(
-        leading: Icon(icon, color: iconColor ?? AppColors.primary, size: 24),
+        leading: Icon(icon, color: iconColor ?? AppColors.primary, size: 22),
         title: Text(
           title,
           style: TextStyle(
             fontWeight: FontWeight.w700,
-            fontSize: 14,
+            fontSize: 13,
             color: textColor ?? AppColors.textMain,
           ),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
         ),
-        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       ),
     );
   }
