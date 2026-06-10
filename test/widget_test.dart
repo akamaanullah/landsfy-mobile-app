@@ -8,5 +8,8 @@ void main() {
 
     // Verify that the Landsfy text / splash elements exist on boot
     expect(find.byType(LandsfyApp), findsOneWidget);
+
+    // Drain the pending splash screen transition timer (3 seconds) to prevent test harness failure
+    await tester.pump(const Duration(seconds: 3));
   });
 }

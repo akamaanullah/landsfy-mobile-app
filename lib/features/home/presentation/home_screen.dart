@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../properties/presentation/properties_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -206,36 +208,55 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: _buildSideDrawer(),
-      body: NestedScrollView(
-        controller: _scrollController,
-        headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
-          return <Widget>[
-            _buildSliverAppBar(),
-          ];
-        },
-        body: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              _buildCategorySection(),
-              const SizedBox(height: 28),
-              _buildRecentlyViewedSection(),
-              const SizedBox(height: 28),
-              _buildCTABannerSection(),
-              const SizedBox(height: 28),
-              _buildFeaturedPropertiesSection(),
-              const SizedBox(height: 28),
-              _buildBlogsSection(),
-              const SizedBox(height: 100), // Added spacing to prevent bottom bar overlap at end of scroll
-            ],
-          ),
-        ),
-      ),
+      body: _buildBody(),
       bottomNavigationBar: _buildCustomBottomAppBar(),
       floatingActionButton: _buildGlowingSearchButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedBottomNavIndex) {
+      case 0:
+        return _buildHomeBody();
+      case 1:
+        return const PropertiesScreen();
+      case 2:
+        return _buildFavoritesBody();
+      case 3:
+        return _buildProfileBody();
+      default:
+        return _buildHomeBody();
+    }
+  }
+
+  Widget _buildHomeBody() {
+    return NestedScrollView(
+      controller: _scrollController,
+      headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+        return <Widget>[
+          _buildSliverAppBar(),
+        ];
+      },
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            _buildCategorySection(),
+            const SizedBox(height: 28),
+            _buildRecentlyViewedSection(),
+            const SizedBox(height: 28),
+            _buildCTABannerSection(),
+            const SizedBox(height: 28),
+            _buildFeaturedPropertiesSection(),
+            const SizedBox(height: 28),
+            _buildBlogsSection(),
+            const SizedBox(height: 100), // Added spacing to prevent bottom bar overlap at end of scroll
+          ],
+        ),
+      ),
     );
   }
 
@@ -928,24 +949,27 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? AppColors.primary : AppColors.textMuted,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                categoryName,
-                style: TextStyle(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
                   color: isSelected ? AppColors.primary : AppColors.textMuted,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
+                  size: 20,
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text(
+                  categoryName,
+                  style: TextStyle(
+                    color: isSelected ? AppColors.primary : AppColors.textMuted,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -977,9 +1001,11 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: _properties.length,
             itemBuilder: (context, index) {
               final prop = _properties[index];
-              return Container(
-                width: 250,
-                margin: const EdgeInsets.only(right: 12),
+              return GestureDetector(
+                onTap: () => context.pushNamed('details', extra: prop),
+                child: Container(
+                  width: 250,
+                  margin: const EdgeInsets.only(right: 12),
                 decoration: BoxDecoration(
                   color: AppColors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -1040,8 +1066,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+            );
+          },
           ),
         ),
       ],
@@ -1198,7 +1225,10 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: _properties.length,
             itemBuilder: (context, index) {
               final prop = _properties[index];
-              return _buildPropertyCard(prop);
+              return GestureDetector(
+                onTap: () => context.pushNamed('details', extra: prop),
+                child: _buildPropertyCard(prop),
+              );
             },
           ),
         ),
@@ -1490,7 +1520,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          setState(() {
+            _selectedBottomNavIndex = 1;
+          });
+        },
         backgroundColor: Colors.transparent,
         elevation: 0,
         shape: const CircleBorder(),
@@ -1580,6 +1614,284 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFavoritesBody() {
+    final favorites = _properties.take(2).toList();
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primaryLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Saved Properties',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Your curated collection of dream properties',
+                  style: TextStyle(
+                    color: AppColors.white.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: favorites.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.favorite_border_rounded,
+                          size: 64,
+                          color: AppColors.textMuted.withValues(alpha: 0.3),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No saved properties yet',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textMain,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                    itemCount: favorites.length,
+                    itemBuilder: (context, index) {
+                      final prop = favorites[index];
+                      return GestureDetector(
+                        onTap: () => context.pushNamed('details', extra: prop),
+                        child: _buildPropertyCard(prop),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileBody() {
+    return SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          children: [
+            // Profile Header
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+              child: Column(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.network(
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+                        width: 90,
+                        height: 90,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Amaanullah',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'info@amaanullah.com',
+                    style: TextStyle(
+                      color: AppColors.white.withValues(alpha: 0.85),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'DEVELOPER & PARTNER',
+                      style: TextStyle(
+                        color: AppColors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Profile Options
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Developer Profile',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textMain,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildProfileTile(
+                    icon: Icons.language_rounded,
+                    title: 'Visit Website',
+                    subtitle: 'amaanullah.com',
+                    onTap: () {},
+                  ),
+                  _buildProfileTile(
+                    icon: Icons.email_rounded,
+                    title: 'Contact Email',
+                    subtitle: 'info@amaanullah.com',
+                    onTap: () {},
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Account Preferences',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textMain,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildProfileTile(
+                    icon: Icons.home_work_outlined,
+                    title: 'My Listings',
+                    subtitle: 'Manage your active properties',
+                    onTap: () {},
+                  ),
+                  _buildProfileTile(
+                    icon: Icons.notifications_none_rounded,
+                    title: 'Notifications',
+                    subtitle: 'Alerts, updates & listings info',
+                    onTap: () {},
+                  ),
+                  _buildProfileTile(
+                    icon: Icons.gavel_rounded,
+                    title: 'Terms & Privacy Policy',
+                    subtitle: 'Landsfy legal agreements',
+                    onTap: () {},
+                  ),
+                  _buildProfileTile(
+                    icon: Icons.logout_rounded,
+                    title: 'Logout',
+                    subtitle: 'Sign out of your account',
+                    textColor: Colors.red,
+                    iconColor: Colors.red,
+                    onTap: () {},
+                  ),
+                  const SizedBox(height: 120),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    Color? textColor,
+    Color? iconColor,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: iconColor ?? AppColors.primary, size: 24),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: textColor ?? AppColors.textMain,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
     );
   }

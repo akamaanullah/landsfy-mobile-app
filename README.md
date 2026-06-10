@@ -23,6 +23,12 @@ This project implements a clean architecture and a state-of-the-art UI system to
    * **Browse Categories Section**: Features animated Category Tabs (Homes, Plots, Commercial) linked to a 2-column sub-item grid with splash ripple ink wells.
    * **Sliders & Banners**: Added horizontal Recently Viewed lists, a premium CTA banner for posting ads, horizontal Featured Property cards, and a real estate news carousel.
    * **Custom Docked Bottom Bar**: Notched BottomAppBar holding items with a custom elevated, glowing central search action button.
+5. **Property Details Screen**:
+   * Displays full image carousel, property specifications (beds, baths, area), description, agent contact interface, and a **Related Properties** horizontal slider that supports dynamic sub-navigation to sibling details screens. Removed map view per requirements.
+6. **Properties Discovery & Tab Switching**:
+   * Refactored main scaffold body into an index-switched tab layout.
+   * Built the dedicated **Properties Screen** under the second tab featuring a search query bar, Category chips (All, Homes, Plots, Commercial), Purpose filters (All, Buy, Rent), and a vertical scroll catalog of properties linked to detail routing.
+   * Implemented custom **Favorites** and **Profile** screens (the Profile screen highlights developer details: Amaanullah, [amaanullah.com](http://amaanullah.com), [info@amaanullah.com](mailto:info@amaanullah.com)).
 
 ---
 
