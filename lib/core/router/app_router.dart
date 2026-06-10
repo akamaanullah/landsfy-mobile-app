@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/property_details/presentation/property_details_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -24,6 +25,11 @@ class AppRouter {
           final extra = state.extra as Map<String, dynamic>? ?? {};
           return PropertyDetailsScreen(property: extra);
         },
+      ),
+      GoRoute(
+        path: '/search',
+        name: 'search',
+        builder: (context, state) => const SearchScreen(),
       ),
     ],
   );

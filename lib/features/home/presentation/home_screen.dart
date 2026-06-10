@@ -382,7 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: GestureDetector(
-              onTap: () => _showSearchBottomSheet(context),
+              onTap: () => context.pushNamed('search'),
               child: const Text(
                 'Search for Homes, Plots...',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13),
@@ -395,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> {
             color: AppColors.border,
           ),
           GestureDetector(
-            onTap: () => _showSearchBottomSheet(context),
+            onTap: () => context.pushNamed('search'),
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -423,242 +423,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // MODAL SEARCH BOTTOM SHEET
-  void _showSearchBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.70,
-              decoration: const BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Filter Properties',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Modal Buy/Rent Toggle
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => _isRentSelected = false),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: !_isRentSelected ? AppColors.primary : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Buy',
-                                style: TextStyle(
-                                  color: !_isRentSelected ? AppColors.white : AppColors.textMuted,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => _isRentSelected = true),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _isRentSelected ? AppColors.primary : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Rent',
-                                style: TextStyle(
-                                  color: _isRentSelected ? AppColors.white : AppColors.textMuted,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Location Input
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Enter Location...',
-                      prefixIcon: const Icon(Icons.location_on_rounded, color: AppColors.primary),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      fillColor: const Color(0xFFF8FAFC),
-                      filled: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // City selector dropdown
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      border: Border.all(color: AppColors.border),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: 'Karachi',
-                        isExpanded: true,
-                        items: <String>['Karachi', 'Lahore', 'Islamabad'].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value, style: const TextStyle(fontSize: 14)),
-                          );
-                        }).toList(),
-                        onChanged: (_) {},
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Category & Beds
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSmallDropdown('Type', 'Residential'),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildSmallDropdown('Beds', '3+'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Price inputs
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSmallTextField('Price From', 'e.g. 50k'),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildSmallTextField('Price To', 'e.g. 2 Crore'),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Apply Filters & Search',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSmallDropdown(String title, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          hint: Text(title, style: const TextStyle(fontSize: 12)),
-          style: const TextStyle(fontSize: 12, color: AppColors.textMain),
-          items: [value].map((String val) {
-            return DropdownMenuItem<String>(
-              value: val,
-              child: Text(val),
-            );
-          }).toList(),
-          onChanged: (_) {},
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSmallTextField(String label, String hint) {
-    return TextField(
-      style: const TextStyle(fontSize: 12),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-        hintStyle: const TextStyle(fontSize: 11),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        fillColor: AppColors.white,
-        filled: true,
-      ),
-    );
-  }
 
   Widget _buildHeroBuyRentToggle() {
     return Container(
@@ -1520,11 +1284,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: FloatingActionButton(
-        onPressed: () {
-          setState(() {
-            _selectedBottomNavIndex = 1;
-          });
-        },
+        onPressed: () => context.pushNamed('search'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         shape: const CircleBorder(),
