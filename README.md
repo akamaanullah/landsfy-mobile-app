@@ -1,77 +1,144 @@
-# Landsfy Mobile App
+# 🏠 Landsfy Mobile App
 
-A premium, production-ready mobile application for the **Landsfy** real estate portal, built in Flutter. This application is designed to deliver a high-performance, visually stunning experience on both Android and iOS devices, matching the core aesthetics and feature set of the [Landsfy Web Portal](http://www.landsfy.com/).
-
----
-
-## 🚀 Project Overview & Status
-
-This project implements a clean architecture and a state-of-the-art UI system to showcase real estate listings, blogs, and agent dashboards in Pakistan.
-
-### What is Completed So Far:
-1. **Core Architecture & Dependencies**:
-   * Initialized project and configured [pubspec.yaml](file:///g:/landsfyapp/pubspec.yaml) with production dependencies: `flutter_bloc`, `dio`, `get_it`, `go_router`, `google_fonts`, `cached_network_image`, and `flutter_svg`.
-   * Standardized typography using Google Fonts (**Outfit** for headers, **Inter** for body text).
-   * Refined compiler health to be **100% warning-free**, resolving unused fields and replacing deprecated `withOpacity` APIs with modern `.withValues(alpha: ...)` calls.
-2. **Branding & Theme Setup**:
-   * Established a consistent brand theme in [app_theme.dart](file:///g:/landsfyapp/lib/core/theme/app_theme.dart) utilizing deep purple shades (`#4B0082`, `#6B00B6`) and premium lilac-violet tag accents. Removed all unrelated gold and blue accents to maintain high visual alignment.
-3. **Splash Screen**:
-   * Implemented elastic scale and smooth fade-in logo transitions on app startup before auto-routing to the Home dashboard.
-4. **Home Screen Dashboard & Pinned Header Layout**:
-   * **Dynamic Collapsing Search bar**: Designed a sticky header mechanic using scroll listeners. When scrolled down, the brand logo and upper buttons fade out, while a side drawer menu button slides out on the left and shrinks the search bar's width dynamically.
-   * **Spacing & Spacers**: Added a safe `12px` purple spacer under the status bar when collapsed, fixed overlap conflicts between the Buy/Rent toggle and search bar, and added bottom margins to prevent overlap with the bottom nav bar.
-   * **Browse Categories Section**: Features animated Category Tabs (Homes, Plots, Commercial) linked to a 2-column sub-item grid with splash ripple ink wells.
-   * **Sliders & Banners**: Added horizontal Recently Viewed lists, a premium CTA banner for posting ads, horizontal Featured Property cards, and a real estate news carousel.
-   * **Custom Docked Bottom Bar**: Notched BottomAppBar holding items with a custom elevated, glowing central search action button.
-5. **Property Details Screen**:
-   * Displays full image carousel, property specifications (beds, baths, area), description, agent contact interface, and a **Related Properties** horizontal slider that supports dynamic sub-navigation to sibling details screens. Removed map view per requirements.
-6. **Properties Discovery & Tab Switching**:
-   * Refactored main scaffold body into an index-switched tab layout.
-   * Built the dedicated **Properties Screen** under the second tab featuring a search query bar, Category chips (All, Homes, Plots, Commercial), Purpose filters (All, Buy, Rent), and a vertical scroll catalog of properties linked to detail routing.
-   * Implemented custom **Favorites** and **Profile** screens (the Profile screen highlights developer details: Amaanullah, [amaanullah.com](http://amaanullah.com), [info@amaanullah.com](mailto:info@amaanullah.com)).
+A premium, production-ready **Flutter** mobile application for the [Landsfy](http://www.landsfy.com/) real estate portal — Pakistan's property discovery platform. Built with a fully modular clean architecture, delivering a visually stunning experience on both Android and iOS.
 
 ---
 
-## 🎯 Development Scope
+## ✨ Feature Overview
 
-The development roadmap is divided into the following phases:
-
-1. **Phase 1: High-Fidelity UI Prototyping** (Splash & Home Dashboard *Completed*)
-   * Splash screen transitions and core navigation setup.
-   * Collapsing sticky search bar physics and category grid structure.
-2. **Phase 2: Details & Discovery Pages**
-   * Property details view displaying comprehensive specifications (amenities, location maps, agent information, related listings).
-   * Advanced search and filters overlays (integrating cities, budgets, areas).
-3. **Phase 3: Web Portal API Integration**
-   * Integrating core REST API endpoints from Landsfy.com.
-   * Fetching dynamic listings, recently viewed items, featured properties, and blog data.
-4. **Phase 4: User Panel & Posting Engine**
-   * User login/registration.
-   * Property upload screen (submitting pictures, filling details, pinning location on map).
-   * User panel (Manage Ads, Profile settings, Favorites listing).
-5. **Phase 5: Drawer Navigation Links**
-   * Setting up routes for side drawer navigation: Add Property, Landsfy News portal, About Us, Contact Us, and Terms & Privacy policies.
-6. **Phase 6: Final Polish & Release Management**
-   * Play Store (Android) and App Store (iOS) release configuration.
-   * Push notification integration.
+| Screen | Status | Highlights |
+|---|---|---|
+| Splash Screen | ✅ Done | Elastic scale + fade-in logo animation |
+| Home Dashboard | ✅ Done | Collapsing sticky header, category grid, featured listings, blogs |
+| Properties Discovery | ✅ Done | Filter panel, search bar, 2-column grid layout |
+| Property Details | ✅ Done | Image carousel, specs, agent contact, related listings |
+| Search Screen | ✅ Done | Full-featured search with live results + filters |
+| Favorites Screen | ✅ Done | 2-column saved properties grid with compact cards |
+| Profile / Dashboard | ✅ Done | Role-based dashboard (Buyer / Seller / Agent / Agency / Admin) |
+| Login Screen | ✅ Done | Email + password, Google sign-in option |
+| Sign Up Screen | ✅ Done | Full registration form, Google sign-up option |
 
 ---
 
-## 👨‍💻 Developer Information
+## 🏗️ Architecture & Project Structure
 
-This mobile application is crafted and maintained by:
+The project follows a **feature-first modular architecture** with clean separation of UI, logic, and shared core concerns.
 
-* **Developer & Architect**: Amanullah
-* **Official Website**: [amaanullah.com](http://amaanullah.com)
-* **Contact Email**: [info@amaanullah.com](mailto:info@amaanullah.com)
-
-If you have questions about the API configuration, routing architectures, or UI layouts, feel free to reach out.
+```
+lib/
+├── core/
+│   ├── router/           # go_router route definitions
+│   └── theme/            # AppTheme, AppColors, typography tokens
+├── features/
+│   ├── splash/           # Splash screen with animated logo
+│   ├── home/             # Main shell: collapsing AppBar, bottom nav, home feed
+│   ├── properties/       # Properties listing: search bar, filters, 2-col grid
+│   ├── property_details/ # Detail view: carousel, specs, agent info, related
+│   ├── search/           # Full search screen with live filtering
+│   ├── favorites/        # Saved properties 2-column grid
+│   └── profile/
+│       ├── login_screen.dart       # Login with email or Google
+│       ├── signup_screen.dart      # Sign up with email or Google
+│       ├── profile_screen.dart     # Auth-gate: shows login or dashboard
+│       └── widgets/
+│           ├── role_dashboard_view.dart  # Role-based stats + actions
+│           ├── stat_card.dart            # Metric card widget
+│           └── profile_menu_tile.dart    # Tappable settings row
+└── main.dart
+```
 
 ---
 
-## 🛠️ Getting Started
+## 📱 Screen Details
 
-To run this project locally, ensure you have Flutter SDK installed (v3.22+ recommended):
+### 🏠 Home Dashboard
+- **Collapsing SliverAppBar**: Dynamic sticky header with buy/rent toggle and search bar that morphs as you scroll. Logo fades out and a slide-out drawer button appears.
+- **Category Grid**: Tab pills (Homes, Plots, Commercial, All Purpose) linked to a sub-pill filter row (Popular, Type, Area Size), rendering an animated 2-column icon grid.
+- **Recently Viewed**: Horizontal property card slider.
+- **CTA Banner**: "Post Your Ad Free" promotional banner.
+- **Featured Properties**: Premium property cards with badge types (Diamond, Platinum, Featured).
+- **Real Estate Blog Feed**: Horizontally scrollable news cards with category tags.
+- **Custom Docked Bottom Bar**: Notched BottomAppBar with a glowing elevated central Search button.
+
+### 🔍 Properties Screen
+- Collapsible filter panel with sort/filter chips.
+- In-screen search bar.
+- 2-column compact property card grid.
+- Purpose toggle (Buy / Rent).
+
+### 📋 Property Details Screen
+- Full-width image carousel with page indicators.
+- Spec row: beds, baths, area.
+- Agent contact section.
+- Related Properties horizontal slider with deep-link navigation.
+
+### 🔎 Search Screen
+- Live search input with suggestions.
+- Filter chips for property type, purpose, city.
+- Grid results view with compact cards.
+
+### ❤️ Favorites Screen
+- 2-column responsive grid of saved properties.
+- Compact cards with badge overlays (Diamond / Platinum / Featured), purpose tag, and solid heart icon.
+- Empty state illustration.
+
+### 👤 Profile & Dashboard
+Authentication is managed by `ProfileScreen`, which gate-keeps between:
+
+- **Login Screen**: Email/password form, forgot password, Google continue button, and toggle to Sign Up.
+- **Sign Up Screen**: Full name, email, phone, password fields, terms checkbox, Google sign-up, and toggle to Login.
+- **Role-Based Dashboard** (post-login): Role selector chips at the top to switch between:
+
+| Role | Stats Shown | Panel Actions |
+|---|---|---|
+| **Buyer** | Saved Listings, Alerts, Agents Contacted, Viewed History | Saved Searches, Alerts, Shortlists, History, Contacts |
+| **Seller** | Listed Properties, Views, Inquiries, Closed Deals | My Properties, Post New, Buyer Leads, Inquiries, Analytics |
+| **Agent** | Active Clients, Listings, Leads, Est. Commission | Listed Properties, Client Leads, Commission Tracker, Agency Profile, Subscription |
+| **Agency Owner** | Active Agents, Agency Listings, Total Leads, Revenue | Manage Agents, Listings, Analytics, Subscription, Settings |
+| **Admin** | Total Users, Pending Approvals, Active Listings, Reports | Moderation Queue, User Mgmt, Property Verification, Config, Audit Logs |
+
+---
+
+## 🎨 Design System
+
+- **Primary Color**: Deep Violet `#4B0082` / `#6B00B6`
+- **Accent**: Warm Lilac/Gold tag palette
+- **Typography**: `Outfit` (headings/display) + `Inter` (body/labels) via Google Fonts
+- **Cards**: Rounded corners (14–18px), subtle shadow, white surface
+- **Animations**: `AnimatedContainer`, `BouncingScrollPhysics`, elastic splash transitions
+- **Badges**: Diamond 💎 / Platinum ✨ / Featured ⭐ / Regular
+
+---
+
+## 🔧 Tech Stack & Dependencies
+
+| Package | Purpose |
+|---|---|
+| `flutter_bloc` | State management (BLoC pattern) |
+| `go_router` | Declarative navigation & deep linking |
+| `dio` | HTTP client for REST API |
+| `get_it` | Dependency injection container |
+| `google_fonts` | Outfit + Inter typography |
+| `cached_network_image` | Efficient network image caching |
+| `flutter_svg` | SVG icon rendering |
+
+---
+
+## 🗺️ Development Roadmap
+
+- [x] **Phase 1** — Splash & Home Dashboard (collapsing header, category grid, featured listings)
+- [x] **Phase 2** — Properties Discovery, Property Details, Search Screen
+- [x] **Phase 3** — Favorites (2-col grid), Profile Dashboard (5 roles), Login & Sign Up screens
+- [ ] **Phase 4** — Landsfy REST API integration (live listings, blogs, featured data)
+- [ ] **Phase 5** — Property Upload Engine (photos, specs, map pin)
+- [ ] **Phase 6** — Push Notifications, Drawer nav links (About, Contact, T&C)
+- [ ] **Phase 7** — Play Store (Android) & App Store (iOS) release build & configuration
+
+---
+
+## 🚀 Getting Started
+
+Ensure you have **Flutter SDK v3.22+** installed.
 
 ```bash
 # Clone the repository
@@ -80,9 +147,23 @@ git clone https://github.com/akamaanullah/landsfy-mobile-app.git
 # Navigate into the project folder
 cd landsfy-mobile-app
 
-# Get dependencies
+# Install dependencies
 flutter pub get
 
-# Run on your connected device/simulator
+# Run on your connected device or simulator
 flutter run
 ```
+
+> **Note**: This is currently a UI prototype using static mock data. API integration is planned for Phase 4.
+
+---
+
+## 👨‍💻 Developer Information
+
+Crafted and maintained by:
+
+- **Developer & Architect**: Amanullah
+- **Website**: [amaanullah.com](http://amaanullah.com)
+- **Email**: [info@amaanullah.com](mailto:info@amaanullah.com)
+
+For questions on API configuration, routing architecture, or UI design decisions, feel free to reach out.
