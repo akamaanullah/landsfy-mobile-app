@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/favorites_manager.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -11,58 +12,65 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
-  // Mock Property Data
-  final List<Map<String, dynamic>> _properties = [
-    {
-      'title': '240 Sq. Yd. Luxury Villa',
-      'location': 'Block A, Naya Nazimabad, Karachi',
-      'price': 'PKR 4.8 Crore',
-      'beds': 4,
-      'baths': 5,
-      'area': '240 Sq. Yd.',
-      'badgeType': 'Diamond',
-      'image': 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Buy',
-    },
-    {
-      'title': 'Premium 3-Bed Apartment',
-      'location': 'DHA Phase 6, Karachi',
-      'price': 'PKR 2.5 Lakh / month',
-      'beds': 3,
-      'baths': 3,
-      'area': '2000 Sq. Ft.',
-      'badgeType': 'Platinum',
-      'image': 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Rent',
-    },
-    {
-      'title': '500 Sq. Yd. Prime Plot',
-      'location': 'Bahria Town Phase 2, Lahore',
-      'price': 'PKR 3.2 Crore',
-      'beds': 0,
-      'baths': 0,
-      'area': '500 Sq. Yd.',
-      'badgeType': 'Featured',
-      'image': 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Buy',
-    },
-    {
-      'title': 'Modern Office Suite',
-      'location': 'Blue Area, Islamabad',
-      'price': 'PKR 1.2 Lakh / month',
-      'beds': 0,
-      'baths': 2,
-      'area': '1200 Sq. Ft.',
-      'badgeType': 'Regular',
-      'image': 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Rent',
-    },
-  ];
+  List<Map<String, dynamic>> _properties = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final favs = await FavoritesManager.getFavorites();
+    if (mounted) {
+      setState(() {
+        _properties = favs;
+        _isLoading = false;
+      });
+    }
+  }
+
+  int _parseInt(dynamic val) {
+    if (val == null) return 0;
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    return int.tryParse(val.toString()) ?? 0;
+  }
+
+  String _formatPrice(dynamic priceVal, [String purpose = 'sell']) {
+    if (priceVal == null) return 'PKR 0';
+    final strVal = priceVal.toString().trim();
+    if (strVal.startsWith('PKR') || strVal.contains('Crore') || strVal.contains('Lakh') || strVal.contains('Thousand')) {
+      return strVal;
+    }
+    final price = double.tryParse(strVal) ?? 0.0;
+    if (price <= 0) return strVal.isEmpty ? 'PKR 0' : strVal;
+
+    if (price >= 10000000) {
+      final crore = price / 10000000;
+      final formatted = crore.toStringAsFixed(crore % 1 == 0 ? 0 : (crore * 10 % 1 == 0 ? 1 : 2));
+      return 'PKR $formatted Crore';
+    } else if (price >= 100000) {
+      final lakh = price / 100000;
+      final formatted = lakh.toStringAsFixed(lakh % 1 == 0 ? 0 : (lakh * 10 % 1 == 0 ? 1 : 2));
+      return 'PKR $formatted Lakh${purpose == 'rent' ? '/mo' : ''}';
+    } else if (price >= 1000) {
+      final thousand = price / 1000;
+      final formatted = thousand.toStringAsFixed(thousand % 1 == 0 ? 0 : (thousand * 10 % 1 == 0 ? 1 : 2));
+      return 'PKR $formatted Thousand${purpose == 'rent' ? '/mo' : ''}';
+    } else {
+      return 'PKR ${price.toStringAsFixed(0)}';
+    }
+  }
 
   Widget _buildCompactPropertyCard(Map<String, dynamic> prop) {
     Color badgeColor = AppColors.primary;
     if (prop['badgeType'] == 'Diamond') badgeColor = AppColors.diamond;
     if (prop['badgeType'] == 'Platinum') badgeColor = AppColors.platinum;
+
+    final bedsCount = _parseInt(prop['beds']);
+    final bathsCount = _parseInt(prop['baths']);
 
     return GestureDetector(
       onTap: () => context.pushNamed('details', extra: prop),
@@ -91,7 +99,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     topRight: Radius.circular(14),
                   ),
                   child: CachedNetworkImage(
-                    imageUrl: prop['image'].toString(),
+                    imageUrl: prop['image']?.toString() ?? 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
                     height: 120,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -110,7 +118,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                 ),
                 // Badge
-                if (prop['badgeType'] != 'Regular')
+                if (prop['badgeType'] != null && prop['badgeType'] != 'Regular')
                   Positioned(
                     top: 8,
                     left: 8,
@@ -132,83 +140,84 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     ),
                   ),
                 // Purpose
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      prop['purpose'].toString().toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
+                if (prop['purpose'] != null)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        prop['purpose'].toString().toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                // Solid Favorite icon (since it is saved)
+                // Favorite icon toggle
                 Positioned(
                   bottom: 8,
                   right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.favorite_rounded,
-                      size: 14,
-                      color: AppColors.primary,
+                  child: GestureDetector(
+                    onTap: () async {
+                      await FavoritesManager.toggleFavorite(prop);
+                      _loadFavorites();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.favorite_rounded,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            // Content section
+            // Info section
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Price
                     Text(
-                      prop['price'].toString(),
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                      ),
+                      _formatPrice(prop['price'], prop['purpose']?.toString() ?? 'sell'),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      prop['title']?.toString() ?? '',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
-                    // Title
-                    Text(
-                      prop['title'].toString(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                        color: AppColors.textMain,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                     const SizedBox(height: 4),
-                    // Location
                     Row(
                       children: [
-                        const Icon(Icons.location_on_rounded, size: 10, color: AppColors.textMuted),
+                        const Icon(Icons.location_on, size: 12, color: AppColors.textMuted),
                         const SizedBox(width: 2),
                         Expanded(
                           child: Text(
-                            prop['location'].toString(),
+                            prop['location']?.toString() ?? '',
                             style: const TextStyle(
                               fontSize: 10,
                               color: AppColors.textMuted,
@@ -223,20 +232,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     // Specs row
                     Row(
                       children: [
-                        if (prop.containsKey('beds') && prop['beds'] > 0) ...[
+                        if (bedsCount > 0) ...[
                           const Icon(Icons.king_bed_outlined, size: 11, color: AppColors.primary),
                           const SizedBox(width: 2),
                           Text(
-                            '${prop['beds']}',
+                            '$bedsCount',
                             style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(width: 6),
                         ],
-                        if (prop.containsKey('baths') && prop['baths'] > 0) ...[
+                        if (bathsCount > 0) ...[
                           const Icon(Icons.bathtub_outlined, size: 11, color: AppColors.primary),
                           const SizedBox(width: 2),
                           Text(
-                            '${prop['baths']}',
+                            '$bathsCount',
                             style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(width: 6),
@@ -245,7 +254,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         const SizedBox(width: 2),
                         Expanded(
                           child: Text(
-                            prop['area'].toString(),
+                            (prop['area'] ?? '').toString(),
                             style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -265,91 +274,63 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final favorites = _properties.where((p) => p['badgeType'] != 'Regular').toList();
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F8),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Saved Properties',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 22,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Your curated collection of dream properties',
-                    style: TextStyle(
-                      color: AppColors.white.withValues(alpha: 0.8),
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('Saved Properties', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            Expanded(
-              child: favorites.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.favorite_border_rounded,
-                            size: 64,
-                            color: AppColors.textMuted.withValues(alpha: 0.3),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No saved properties yet',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textMain,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : GridView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(12, 16, 12, 100),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.68,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
-                      itemCount: favorites.length,
-                      itemBuilder: (context, index) {
-                        return _buildCompactPropertyCard(favorites[index]);
-                      },
-                    ),
-            ),
-          ],
+          ),
         ),
+        elevation: 0,
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : _properties.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.favorite_border_rounded, size: 64, color: AppColors.textMuted.withValues(alpha: 0.5)),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No saved properties yet',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textMain),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Tap the heart icon on any listing to save it here.',
+                        style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.72,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            return _buildCompactPropertyCard(_properties[index]);
+                          },
+                          childCount: _properties.length,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 }

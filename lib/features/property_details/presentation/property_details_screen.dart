@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../home/data/models/property_model.dart';
+import '../data/services/property_details_api_service.dart';
+import '../../../core/services/favorites_manager.dart';
 
 class PropertyDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> property;
@@ -12,34 +16,216 @@ class PropertyDetailsScreen extends StatefulWidget {
 }
 
 class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
+  final PropertyDetailsApiService _apiService = PropertyDetailsApiService();
+  final PageController _pageController = PageController();
+  
+  bool _isLoading = true;
+  String? _errorMessage;
+  Map<String, dynamic> _propertyData = {};
+  List<dynamic> _similarProperties = [];
+
   bool _isFavorite = false;
   int _currentImageIndex = 0;
-
-  // Mock list of additional images for the slider
-  late final List<String> _propertyImages;
+  List<String> _propertyImages = [];
 
   @override
   void initState() {
     super.initState();
-    // Use the main image, and duplicate/mock others if none are provided
+    // Pre-populate slider image from widget.property so it renders immediately
     final mainImage = widget.property['image'] ?? 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80';
-    _propertyImages = [
-      mainImage,
-      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=600&q=80',
-      'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=600&q=80',
-    ];
+    _propertyImages = [mainImage];
+
+    // Check favorite status immediately
+    final int pId = int.tryParse(widget.property['id']?.toString() ?? '') ?? 0;
+    if (pId > 0) {
+      FavoritesManager.isFavorite(pId).then((val) {
+        if (mounted) {
+          setState(() {
+            _isFavorite = val;
+          });
+        }
+      });
+    }
+
+    _loadPropertyDetails();
+  }
+
+  Future<void> _loadPropertyDetails() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      final slug = widget.property['slug']?.toString() ?? '';
+      if (slug.isEmpty) {
+        throw Exception('Property slug is missing');
+      }
+      debugPrint("Loading property details for slug: '$slug'");
+      final result = await _apiService.getPropertyDetails(slug);
+      if (mounted) {
+        setState(() {
+          _propertyData = result['data'] as Map<String, dynamic>;
+          _similarProperties = result['similar'] as List<dynamic>? ?? [];
+          
+          // Parse images
+          final rawImages = _propertyData['images'] as List<dynamic>? ?? [];
+          debugPrint("Raw images list from API count: ${rawImages.length}");
+          final List<String> loadedImages = rawImages.map<String>((img) {
+            final url = img['image_url']?.toString() ?? '';
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+              return url;
+            }
+            final clean = url.startsWith('/') ? url.substring(1) : url;
+            return 'https://landsfy.com/$clean';
+          }).toList();
+          
+          if (loadedImages.isNotEmpty) {
+            _propertyImages = loadedImages;
+            debugPrint("Successfully loaded ${_propertyImages.length} images: $_propertyImages");
+          } else {
+            debugPrint("Warning: loadedImages is empty, using fallback main image.");
+          }
+
+          final int pId = int.tryParse(_propertyData['id']?.toString() ?? '') ?? 0;
+          FavoritesManager.isFavorite(pId).then((val) {
+            if (mounted) {
+              setState(() {
+                _isFavorite = val;
+              });
+            }
+          });
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildSkeletonLine({double width = double.infinity, double height = 12}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(height / 2),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.property['title'] ?? 'Luxury Property';
-    final location = widget.property['location'] ?? 'Location, Pakistan';
-    final price = widget.property['price'] ?? 'Contact for Price';
-    final beds = widget.property['beds'] ?? 0;
-    final baths = widget.property['baths'] ?? 0;
-    final area = widget.property['area'] ?? 'N/A';
-    final badgeType = widget.property['badgeType'] ?? 'Regular';
-    final purpose = widget.property['purpose'] ?? 'Buy';
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        backgroundColor: AppColors.bgLight,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.wifi_off_rounded, color: Colors.redAccent, size: 48),
+                const SizedBox(height: 12),
+                Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _loadPropertyDetails,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final title = _propertyData['title']?.toString() ?? widget.property['title'] ?? 'Property Details';
+    
+    // Format price
+    String price = '';
+    if (_propertyData['price'] != null) {
+      double rawPrice = double.tryParse(_propertyData['price'].toString()) ?? 0;
+      if (rawPrice >= 10000000) {
+        final crore = rawPrice / 10000000;
+        price = 'PKR ${crore.toStringAsFixed(crore % 1 == 0 ? 0 : 1)} Crore';
+      } else if (rawPrice >= 100000) {
+        final lakh = rawPrice / 100000;
+        price = 'PKR ${lakh.toStringAsFixed(lakh % 1 == 0 ? 0 : 1)} Lakh';
+      } else {
+        price = 'PKR ${rawPrice.toStringAsFixed(0)}';
+      }
+      if (_propertyData['purpose'] == 'rent') {
+        price += '/mo';
+      }
+    } else {
+      price = widget.property['price']?.toString() ?? 'Contact for Price';
+    }
+
+    String location = '';
+    if (_propertyData['city_name'] != null || _propertyData['location_name'] != null) {
+      final String city = _propertyData['city_name']?.toString() ?? '';
+      final String locName = _propertyData['location_name']?.toString() ?? '';
+      location = locName.isNotEmpty ? '$locName, $city' : city;
+    } else {
+      location = widget.property['location']?.toString() ?? 'Location, Pakistan';
+    }
+
+    final int beds = int.tryParse(_propertyData['beds']?.toString() ?? '') ?? int.tryParse(widget.property['beds']?.toString() ?? '') ?? 0;
+    final int baths = int.tryParse(_propertyData['baths']?.toString() ?? '') ?? int.tryParse(widget.property['baths']?.toString() ?? '') ?? 0;
+
+    String area = '';
+    if (_propertyData['area_size'] != null) {
+      final double rawArea = double.tryParse(_propertyData['area_size']?.toString() ?? '0') ?? 0;
+      final String areaUnit = _propertyData['area_unit']?.toString() ?? '';
+      final areaSizeStr = rawArea % 1 == 0 ? rawArea.toInt().toString() : rawArea.toStringAsFixed(1);
+      area = areaUnit.isNotEmpty ? '$areaSizeStr $areaUnit' : '$areaSizeStr sqft';
+    } else {
+      area = widget.property['area']?.toString() ?? 'N/A';
+    }
+
+    final String premiumType = _propertyData['premium_type']?.toString() ?? '';
+    final String premiumStatus = _propertyData['premium_status']?.toString() ?? '';
+    final bool isFeatured = _propertyData['is_featured'] == 1 || _propertyData['is_featured'] == true;
+    
+    String badgeType = 'Regular';
+    if (premiumType == 'diamond' && premiumStatus == 'active') {
+      badgeType = 'Diamond';
+    } else if (premiumType == 'platinum' && premiumStatus == 'active') {
+      badgeType = 'Platinum';
+    } else if (isFeatured) {
+      badgeType = 'Featured';
+    } else if (widget.property['badgeType'] != null) {
+      badgeType = widget.property['badgeType']?.toString() ?? 'Regular';
+    }
+
+    final purpose = _propertyData['purpose']?.toString() == 'rent'
+        ? 'Rent'
+        : widget.property['purpose']?.toString().toLowerCase() == 'rent'
+            ? 'Rent'
+            : 'Buy';
 
     Color badgeColor = AppColors.primary;
     if (badgeType == 'Diamond') {
@@ -47,6 +233,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     } else if (badgeType == 'Platinum') {
       badgeColor = AppColors.platinum;
     }
+
+    final description = _propertyData['description']?.toString() ?? 'No description available.';
 
     return Scaffold(
       backgroundColor: AppColors.bgLight,
@@ -74,7 +262,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             _buildCapsuleBadge(badgeType.toString().toUpperCase(), badgeColor),
                             const SizedBox(width: 8),
                           ],
-                          _buildCapsuleBadge(purpose.toString().toUpperCase(), AppColors.primaryLight),
+                          _buildCapsuleBadge(purpose.toUpperCase(), AppColors.primaryLight),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -145,13 +333,24 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             ),
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        'This premium property offers high-end finishes, modern architecture, and a spacious layout. Situated in a secure, fully-developed neighborhood with access to round-the-clock utilities and amenities. Perfect for families looking for an elegant lifestyle or investors looking for solid returns.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.textMain,
-                              height: 1.5,
+                      _isLoading
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildSkeletonLine(width: double.infinity, height: 13),
+                                const SizedBox(height: 8),
+                                _buildSkeletonLine(width: double.infinity, height: 13),
+                                const SizedBox(height: 8),
+                                _buildSkeletonLine(width: 180, height: 13),
+                              ],
+                            )
+                          : Text(
+                              description,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.textMain,
+                                    height: 1.5,
+                                  ),
                             ),
-                      ),
 
                       const SizedBox(height: 28),
                       const Divider(color: AppColors.border, height: 1),
@@ -217,13 +416,21 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     );
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   // IMAGE SLIDER
   Widget _buildImageSlider() {
     return SizedBox(
       height: 300,
       child: Stack(
         children: [
+          // Wrap in GestureDetector to give horizontal drag priority over parent scroll
           PageView.builder(
+            controller: _pageController,
             itemCount: _propertyImages.length,
             onPageChanged: (index) {
               setState(() {
@@ -250,16 +457,18 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           ),
           // Gradient shadow for visibility of controls
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.black.withValues(alpha: 0.4),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.1),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.4),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.1),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
                 ),
               ),
             ),
@@ -334,17 +543,41 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           ),
           // Favorite button
           GestureDetector(
-            onTap: () {
-              setState(() {
-                _isFavorite = !_isFavorite;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_isFavorite ? 'Added to Favorites!' : 'Removed from Favorites'),
-                  duration: const Duration(seconds: 1),
-                  backgroundColor: AppColors.primary,
-                ),
-              );
+            onTap: () async {
+              final int pId = int.tryParse(_propertyData['id']?.toString() ?? '') ?? 0;
+              // Ensure we include 'image' key so favorite card renders thumbnail correctly
+              final savedMap = Map<String, dynamic>.from(_propertyData);
+              if (savedMap['image'] == null) {
+                savedMap['image'] = _propertyImages.isNotEmpty ? _propertyImages.first : '';
+              }
+              // Also map area size to area so compact card can read it
+              if (savedMap['area'] == null) {
+                final double rawArea = double.tryParse(_propertyData['area_size']?.toString() ?? '0') ?? 0;
+                final String areaUnit = _propertyData['area_unit']?.toString() ?? '';
+                final areaSizeStr = rawArea % 1 == 0 ? rawArea.toInt().toString() : rawArea.toStringAsFixed(1);
+                savedMap['area'] = areaUnit.isNotEmpty ? '$areaSizeStr $areaUnit' : '$areaSizeStr sqft';
+              }
+              // Map location details to location
+              if (savedMap['location'] == null) {
+                final String city = _propertyData['city_name']?.toString() ?? '';
+                final String locName = _propertyData['location_name']?.toString() ?? '';
+                savedMap['location'] = locName.isNotEmpty ? '$locName, $city' : city;
+              }
+              
+              await FavoritesManager.toggleFavorite(savedMap);
+              final isSavedNow = await FavoritesManager.isFavorite(pId);
+              if (mounted) {
+                setState(() {
+                  _isFavorite = isSavedNow;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_isFavorite ? 'Added to Favorites!' : 'Removed from Favorites'),
+                    duration: const Duration(seconds: 1),
+                    backgroundColor: AppColors.primary,
+                  ),
+                );
+              }
             },
             child: Container(
               height: 40,
@@ -439,14 +672,40 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   // AMENITIES GRID
   Widget _buildAmenitiesGrid() {
-    final amenities = [
-      {'name': 'Sui Gas', 'icon': Icons.local_fire_department_rounded},
-      {'name': 'Electricity', 'icon': Icons.flash_on_rounded},
-      {'name': 'Water Supply', 'icon': Icons.water_drop_rounded},
-      {'name': '24/7 Security', 'icon': Icons.security_rounded},
-      {'name': 'Covered Parking', 'icon': Icons.directions_car_rounded},
-      {'name': 'Boundary Wall', 'icon': Icons.border_all_rounded},
-    ];
+    if (_isLoading) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 2.2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          );
+        },
+      );
+    }
+
+    final rawAmenities = _propertyData['amenities'] as List<dynamic>? ?? [];
+
+    if (rawAmenities.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'No amenities specified.',
+          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+        ),
+      );
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -458,9 +717,30 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
-      itemCount: amenities.length,
+      itemCount: rawAmenities.length,
       itemBuilder: (context, index) {
-        final item = amenities[index];
+        final item = rawAmenities[index] as Map<String, dynamic>;
+        final name = item['label']?.toString() ?? '';
+        final val = item['value']?.toString() ?? '';
+
+        IconData icon = Icons.check_circle_outline_rounded;
+        final lowerName = name.toLowerCase();
+        if (lowerName.contains('gas')) {
+          icon = Icons.local_fire_department_rounded;
+        } else if (lowerName.contains('electricity')) {
+          icon = Icons.flash_on_rounded;
+        } else if (lowerName.contains('water')) {
+          icon = Icons.water_drop_rounded;
+        } else if (lowerName.contains('security')) {
+          icon = Icons.security_rounded;
+        } else if (lowerName.contains('parking')) {
+          icon = Icons.directions_car_rounded;
+        } else if (lowerName.contains('wall')) {
+          icon = Icons.border_all_rounded;
+        }
+
+        final display = val.isNotEmpty && val.toLowerCase() != 'yes' ? '$name ($val)' : name;
+
         return Container(
           decoration: BoxDecoration(
             color: AppColors.white,
@@ -470,11 +750,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(item['icon'] as IconData, color: AppColors.primaryLight, size: 16),
+              Icon(icon, color: AppColors.primaryLight, size: 16),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  item['name'].toString(),
+                  display,
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -492,6 +772,49 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   // AGENT CARD
   Widget _buildAgentCard() {
+    if (_isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 52,
+              width: 52,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSkeletonLine(width: 120, height: 14),
+                  const SizedBox(height: 8),
+                  _buildSkeletonLine(width: 80, height: 11),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String name = _propertyData['agency_name']?.toString() ?? _propertyData['owner_name']?.toString() ?? 'Landsfy Agent';
+    final String subtitle = _propertyData['agency_name'] != null ? 'Registered Agency' : 'Property Owner';
+    
+    // Avatar url
+    String avatar = _propertyData['agency_logo']?.toString() ?? _propertyData['owner_avatar']?.toString() ?? '';
+    if (avatar.isNotEmpty && !avatar.startsWith('http://') && !avatar.startsWith('https://')) {
+      avatar = 'https://landsfy.com/${avatar.startsWith('/') ? avatar.substring(1) : avatar}';
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -504,12 +827,25 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           // Agent Image
           ClipRRect(
             borderRadius: BorderRadius.circular(30),
-            child: CachedNetworkImage(
-              imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
-              height: 52,
-              width: 52,
-              fit: BoxFit.cover,
-            ),
+            child: avatar.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: avatar,
+                    height: 52,
+                    width: 52,
+                    fit: BoxFit.cover,
+                    errorWidget: (c, u, e) => Container(
+                      height: 52,
+                      width: 52,
+                      color: AppColors.primarySoft,
+                      child: const Icon(Icons.person, color: AppColors.primary),
+                    ),
+                  )
+                : Container(
+                    height: 52,
+                    width: 52,
+                    color: AppColors.primarySoft,
+                    child: const Icon(Icons.person, color: AppColors.primary),
+                  ),
           ),
           const SizedBox(width: 14),
           // Agent Details
@@ -519,9 +855,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               children: [
                 Row(
                   children: [
-                    const Text(
-                      'Sarah Khan',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.black),
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.black),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const SizedBox(width: 4),
                     Container(
@@ -535,23 +874,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'Defence Realtors (Pvt.) Ltd.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
                 ),
               ],
-            ),
-          ),
-          // View Profile Button
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'Profile',
-              style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -561,41 +888,69 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   // RELATED PROPERTIES SECTION
   Widget _buildRelatedPropertiesSection() {
-    final List<Map<String, dynamic>> relatedProperties = [
-      {
-        'title': 'Premium 3-Bed Apartment',
-        'location': 'DHA Phase 6, Karachi',
-        'price': 'PKR 2.5 Lakh / month',
-        'beds': 3,
-        'baths': 3,
-        'area': '2000 Sq. Ft.',
-        'badgeType': 'Platinum',
-        'image': 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=600&q=80',
-        'purpose': 'Rent',
-      },
-      {
-        'title': '500 Sq. Yd. Prime Plot',
-        'location': 'Bahria Town Phase 2, Lahore',
-        'price': 'PKR 3.2 Crore',
-        'beds': 0,
-        'baths': 0,
-        'area': '500 Sq. Yd.',
-        'badgeType': 'Featured',
-        'image': 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80',
-        'purpose': 'Buy',
-      },
-      {
-        'title': 'Modern Office Suite',
-        'location': 'Blue Area, Islamabad',
-        'price': 'PKR 1.2 Lakh / month',
-        'beds': 0,
-        'baths': 2,
-        'area': '1200 Sq. Ft.',
-        'badgeType': 'Regular',
-        'image': 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=600&q=80',
-        'purpose': 'Rent',
-      },
-    ];
+    if (_isLoading) {
+      return SizedBox(
+        height: 200,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: 3,
+          itemBuilder: (context, index) {
+            return Container(
+              width: 200,
+              margin: const EdgeInsets.only(right: 14, bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 110,
+                    width: 200,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        topRight: Radius.circular(12),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSkeletonLine(width: 80, height: 12),
+                        const SizedBox(height: 6),
+                        _buildSkeletonLine(width: 140, height: 11),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    final List<PropertyModel> relatedList = _similarProperties
+        .map((item) => PropertyModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+
+    if (relatedList.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: Text(
+          'No related properties found.',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      );
+    }
 
     return SizedBox(
       height: 200,
@@ -603,15 +958,15 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.zero,
-        itemCount: relatedProperties.length,
+        itemCount: relatedList.length,
         itemBuilder: (context, index) {
-          final prop = relatedProperties[index];
+          final prop = relatedList[index];
           return GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PropertyDetailsScreen(property: prop),
+                  builder: (context) => PropertyDetailsScreen(property: prop.toMap()),
                 ),
               );
             },
@@ -631,14 +986,21 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
                     ),
-                    child: CachedNetworkImage(
-                      imageUrl: prop['image'].toString(),
-                      height: 110,
-                      width: 200,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(color: AppColors.bgLight),
-                      errorWidget: (context, url, error) => const Icon(Icons.home),
-                    ),
+                    child: prop.fullThumbnailUrl != null && prop.fullThumbnailUrl!.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: prop.fullThumbnailUrl!,
+                            height: 110,
+                            width: 200,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(color: AppColors.bgLight),
+                            errorWidget: (context, url, error) => const Icon(Icons.home),
+                          )
+                        : Container(
+                            height: 110,
+                            width: 200,
+                            color: AppColors.bgLight,
+                            child: const Icon(Icons.home),
+                          ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(10),
@@ -646,7 +1008,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          prop['price'].toString(),
+                          prop.formattedPrice,
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w800,
@@ -656,7 +1018,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          prop['title'].toString(),
+                          prop.title,
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 11,
@@ -671,7 +1033,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             const SizedBox(width: 2),
                             Expanded(
                               child: Text(
-                                prop['location'].toString(),
+                                prop.fullLocation,
                                 style: const TextStyle(fontSize: 9, color: AppColors.textMuted),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -692,6 +1054,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   // STICKY BOTTOM ACTION BAR
   Widget _buildStickyBottomActionBar() {
+    final String phone = _propertyData['owner_phone']?.toString() ?? '';
+    final String email = _propertyData['owner_email']?.toString() ?? '';
+    final String title = _propertyData['title']?.toString() ?? '';
+
     return Positioned(
       bottom: 0,
       left: 0,
@@ -714,62 +1080,71 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         ),
         child: Row(
           children: [
-            // Email/Message Agent button
-            Container(
-              height: 50,
-              width: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(14),
+            // Email Agent button
+            GestureDetector(
+              onTap: () => _makeEmail(email, title),
+              child: Container(
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.mail_outline_rounded, color: AppColors.textMain, size: 24),
               ),
-              child: const Icon(Icons.mail_outline_rounded, color: AppColors.textMain, size: 24),
             ),
             const SizedBox(width: 12),
             // Call Agent Button
             Expanded(
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.primary, width: 1.5),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.call_rounded, color: AppColors.primary, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Call Agent',
-                      style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 14),
-                    ),
-                  ],
+              child: GestureDetector(
+                onTap: () => _makeCall(phone),
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.primary, width: 1.5),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.call_rounded, color: AppColors.primary, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Call Agent',
+                        style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 12),
             // WhatsApp Button
             Expanded(
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryLight],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'WhatsApp',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+              child: GestureDetector(
+                onTap: () => _makeWhatsapp(phone, title),
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.primary, AppColors.primaryLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'WhatsApp',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -777,6 +1152,39 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _makeCall(String phone) async {
+    if (phone.isEmpty) return;
+    final Uri url = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      debugPrint('Could not launch call to $phone');
+    }
+  }
+
+  Future<void> _makeWhatsapp(String phone, String title) async {
+    if (phone.isEmpty) return;
+    final String cleanPhone = phone.replaceAll(RegExp(r'\s+'), '');
+    final String text = Uri.encodeComponent("Hi, I am interested in your property: $title listed on Landsfy.");
+    final Uri url = Uri.parse("https://wa.me/$cleanPhone?text=$text");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      debugPrint('Could not launch WhatsApp for $phone');
+    }
+  }
+
+  Future<void> _makeEmail(String email, String title) async {
+    if (email.isEmpty) return;
+    final String subject = Uri.encodeComponent("Inquiry about property: $title");
+    final Uri url = Uri.parse("mailto:$email?subject=$subject");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      debugPrint('Could not launch email to $email');
+    }
   }
 }
 

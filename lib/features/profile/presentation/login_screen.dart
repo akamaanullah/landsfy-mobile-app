@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../data/services/auth_api_service.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   final VoidCallback onSuccess;
   final VoidCallback onToggleSignup;
 
@@ -11,9 +12,62 @@ class LoginScreen extends StatelessWidget {
     required this.onToggleSignup,
   });
 
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  
+  bool _isLoading = false;
+  String? _errorMessage;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Username/Email and Password are required';
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      final authService = AuthApiService();
+      await authService.login(username, password);
+
+      if (mounted) {
+        widget.onSuccess();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildAuthTextField({
     required String hintText,
     required IconData prefixIcon,
+    required TextEditingController controller,
     bool isPassword = false,
     TextInputType keyboardType = TextInputType.text,
   }) {
@@ -24,14 +78,28 @@ class LoginScreen extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       child: TextField(
-        obscureText: isPassword,
+        controller: controller,
+        obscureText: isPassword && _obscurePassword,
         keyboardType: keyboardType,
         style: const TextStyle(fontSize: 14, color: AppColors.black, fontWeight: FontWeight.w600),
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.normal),
           prefixIcon: Icon(prefixIcon, color: AppColors.textMuted, size: 20),
-          suffixIcon: isPassword ? const Icon(Icons.visibility_off_rounded, color: AppColors.textMuted, size: 20) : null,
+          suffixIcon: isPassword
+              ? GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                  child: Icon(
+                    _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    color: AppColors.textMuted,
+                    size: 20,
+                  ),
+                )
+              : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
@@ -46,11 +114,11 @@ class LoginScreen extends StatelessWidget {
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 32),
               // Header Logo
               Center(
                 child: Column(
@@ -117,17 +185,43 @@ class LoginScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade100),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Email & Password Fields
               _buildAuthTextField(
-                hintText: 'Email Address',
+                hintText: 'Email Address / Username',
                 prefixIcon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
+                controller: _usernameController,
               ),
               const SizedBox(height: 16),
               _buildAuthTextField(
                 hintText: 'Password',
                 prefixIcon: Icons.lock_outline_rounded,
                 isPassword: true,
+                controller: _passwordController,
               ),
               const SizedBox(height: 12),
 
@@ -153,7 +247,7 @@ class LoginScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: onSuccess,
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
@@ -162,10 +256,16 @@ class LoginScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Sign In',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Sign In',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -196,7 +296,7 @@ class LoginScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 52,
                 child: OutlinedButton(
-                  onPressed: onSuccess,
+                  onPressed: _isLoading ? null : widget.onSuccess,
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.border, width: 1.5),
                     shape: RoundedRectangleBorder(
@@ -239,7 +339,7 @@ class LoginScreen extends StatelessWidget {
               // Toggle signup
               Center(
                 child: GestureDetector(
-                  onTap: onToggleSignup,
+                  onTap: _isLoading ? null : widget.onToggleSignup,
                   child: RichText(
                     text: const TextSpan(
                       text: "Don't have an account? ",

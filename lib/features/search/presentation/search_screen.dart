@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../core/services/search_history_manager.dart';
+import '../../home/data/models/property_model.dart';
+import '../../properties/data/services/properties_api_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -17,24 +23,12 @@ class _SearchScreenState extends State<SearchScreen>
   String _query = '';
 
   // Purpose & Category quick filter
-  String _selectedPurpose = 'Buy';
+  String _selectedPurpose = 'All';
   String _selectedCategory = 'All';
 
-  final List<String> _recentSearches = [
-    'Apartments in DHA Karachi',
-    '5 Marla House Lahore',
-    'Commercial Plot Islamabad',
-    'Luxury Villa Bahria Town',
-  ];
-
-  final List<Map<String, dynamic>> _popularLocations = [
-    {'city': 'Karachi', 'listings': '12,400', 'image': 'https://images.unsplash.com/photo-1589553416260-f586c8f1514f?auto=format&fit=crop&w=400&q=80'},
-    {'city': 'Lahore', 'listings': '9,210', 'image': 'https://images.unsplash.com/photo-1548345680-f5475ea5df84?auto=format&fit=crop&w=400&q=80'},
-    {'city': 'Islamabad', 'listings': '6,890', 'image': 'https://images.unsplash.com/photo-1597149268958-9793f7501dd0?auto=format&fit=crop&w=400&q=80'},
-    {'city': 'Rawalpindi', 'listings': '4,120', 'image': 'https://images.unsplash.com/photo-1565618754598-3b7bab1edac9?auto=format&fit=crop&w=400&q=80'},
-    {'city': 'Faisalabad', 'listings': '3,540', 'image': 'https://images.unsplash.com/photo-1519922639192-e73293ca430e?auto=format&fit=crop&w=400&q=80'},
-    {'city': 'Multan', 'listings': '2,870', 'image': 'https://images.unsplash.com/photo-1523217582562-09d0def993a6?auto=format&fit=crop&w=400&q=80'},
-  ];
+  List<String> _recentSearches = [];
+  List<Map<String, dynamic>> _popularLocations = [];
+  bool _isLoadingCities = true;
 
   final List<Map<String, String>> _browseCategories = [
     {'label': 'Homes', 'icon': 'home', 'sub': 'Houses, Apartments, Villas'},
@@ -43,65 +37,36 @@ class _SearchScreenState extends State<SearchScreen>
     {'label': 'Farm Houses', 'icon': 'nature', 'sub': 'Farm Houses & Lands'},
   ];
 
-  final List<Map<String, dynamic>> _allProperties = [
-    {
-      'title': '240 Sq. Yd. Luxury Villa',
-      'location': 'Block A, Naya Nazimabad, Karachi',
-      'price': 'PKR 4.8 Crore',
-      'beds': 4, 'baths': 5, 'area': '240 Sq. Yd.',
-      'badgeType': 'Diamond', 'purpose': 'Buy', 'category': 'Homes',
-      'image': 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
-    },
-    {
-      'title': 'Premium 3-Bed Apartment',
-      'location': 'DHA Phase 6, Karachi',
-      'price': 'PKR 2.5 Lakh/mo',
-      'beds': 3, 'baths': 3, 'area': '2000 Sq. Ft.',
-      'badgeType': 'Platinum', 'purpose': 'Rent', 'category': 'Homes',
-      'image': 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=600&q=80',
-    },
-    {
-      'title': '500 Sq. Yd. Prime Plot',
-      'location': 'Bahria Town Phase 2, Lahore',
-      'price': 'PKR 3.2 Crore',
-      'beds': 0, 'baths': 0, 'area': '500 Sq. Yd.',
-      'badgeType': 'Featured', 'purpose': 'Buy', 'category': 'Plots',
-      'image': 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80',
-    },
-    {
-      'title': 'Modern Office Suite',
-      'location': 'Blue Area, Islamabad',
-      'price': 'PKR 1.2 Lakh/mo',
-      'beds': 0, 'baths': 2, 'area': '1200 Sq. Ft.',
-      'badgeType': 'Regular', 'purpose': 'Rent', 'category': 'Commercial',
-      'image': 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=600&q=80',
-    },
-    {
-      'title': '120 Sq. Yd. Brand New House',
-      'location': 'North Karachi, Karachi',
-      'price': 'PKR 1.95 Crore',
-      'beds': 3, 'baths': 4, 'area': '120 Sq. Yd.',
-      'badgeType': 'Regular', 'purpose': 'Buy', 'category': 'Homes',
-      'image': 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80',
-    },
-    {
-      'title': 'Penthouse with City View',
-      'location': 'Clifton Block 5, Karachi',
-      'price': 'PKR 8.5 Crore',
-      'beds': 5, 'baths': 6, 'area': '4500 Sq. Ft.',
-      'badgeType': 'Diamond', 'purpose': 'Buy', 'category': 'Homes',
-      'image': 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=600&q=80',
-    },
-  ];
+  // API State
+  final PropertiesApiService _propertiesApiService = PropertiesApiService();
+  Timer? _debounceTimer;
+  bool _isSearching = false;
+  List<PropertyModel> _suggestions = [];
 
-  List<Map<String, dynamic>> get _suggestions {
-    if (_query.isEmpty) return [];
-    final q = _query.toLowerCase();
-    return _allProperties.where((p) {
-      return p['title'].toString().toLowerCase().contains(q) ||
-          p['location'].toString().toLowerCase().contains(q) ||
-          p['category'].toString().toLowerCase().contains(q);
-    }).toList();
+  String _formatPrice(dynamic priceVal, [String purpose = 'sell']) {
+    if (priceVal == null) return 'PKR 0';
+    final strVal = priceVal.toString().trim();
+    if (strVal.startsWith('PKR') || strVal.contains('Crore') || strVal.contains('Lakh') || strVal.contains('Thousand')) {
+      return strVal;
+    }
+    final price = double.tryParse(strVal) ?? 0.0;
+    if (price <= 0) return strVal.isEmpty ? 'PKR 0' : strVal;
+
+    if (price >= 10000000) {
+      final crore = price / 10000000;
+      final formatted = crore.toStringAsFixed(crore % 1 == 0 ? 0 : (crore * 10 % 1 == 0 ? 1 : 2));
+      return 'PKR $formatted Crore';
+    } else if (price >= 100000) {
+      final lakh = price / 100000;
+      final formatted = lakh.toStringAsFixed(lakh % 1 == 0 ? 0 : (lakh * 10 % 1 == 0 ? 1 : 2));
+      return 'PKR $formatted Lakh${purpose == 'rent' ? '/mo' : ''}';
+    } else if (price >= 1000) {
+      final thousand = price / 1000;
+      final formatted = thousand.toStringAsFixed(thousand % 1 == 0 ? 0 : (thousand * 10 % 1 == 0 ? 1 : 2));
+      return 'PKR $formatted Thousand${purpose == 'rent' ? '/mo' : ''}';
+    } else {
+      return 'PKR ${price.toStringAsFixed(0)}';
+    }
   }
 
   IconData _categoryIcon(String label) {
@@ -114,41 +79,150 @@ class _SearchScreenState extends State<SearchScreen>
     }
   }
 
+  String _cityImage(String cityName) {
+    switch (cityName.toLowerCase()) {
+      case 'karachi': return 'https://images.unsplash.com/photo-1589553416260-f586c8f1514f?auto=format&fit=crop&w=400&q=80';
+      case 'lahore': return 'https://images.unsplash.com/photo-1548345680-f5475ea5df84?auto=format&fit=crop&w=400&q=80';
+      case 'islamabad': return 'https://images.unsplash.com/photo-1597149268958-9793f7501dd0?auto=format&fit=crop&w=400&q=80';
+      case 'rawalpindi': return 'https://images.unsplash.com/photo-1565618754598-3b7bab1edac9?auto=format&fit=crop&w=400&q=80';
+      case 'faisalabad': return 'https://images.unsplash.com/photo-1519922639192-e73293ca430e?auto=format&fit=crop&w=400&q=80';
+      case 'multan': return 'https://images.unsplash.com/photo-1523217582562-09d0def993a6?auto=format&fit=crop&w=400&q=80';
+      default: return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadRecentSearches();
+    _fetchCities();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+  }
+
+  Future<void> _loadRecentSearches() async {
+    final list = await SearchHistoryManager.getRecentSearches();
+    if (mounted) {
+      setState(() {
+        _recentSearches = list;
+      });
+    }
+  }
+
+  Future<void> _fetchCities() async {
+    try {
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ));
+      final response = await dio.get(ApiConstants.appCities);
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data;
+        if (data['success'] == true && data['cities'] is List) {
+          final List cities = data['cities'];
+          final List<Map<String, dynamic>> cityList = [];
+          for (var c in cities) {
+            final name = c['name']?.toString() ?? '';
+            final count = c['total_listings']?.toString() ?? '0';
+            if (name.isNotEmpty) {
+              cityList.add({
+                'city': name,
+                'listings': count,
+                'image': _cityImage(name),
+              });
+            }
+          }
+          if (mounted && cityList.isNotEmpty) {
+            setState(() {
+              _popularLocations = cityList;
+              _isLoadingCities = false;
+            });
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fallback if network fails
+    if (mounted) {
+      setState(() {
+        _popularLocations = [
+          {'city': 'Karachi', 'listings': '12', 'image': _cityImage('Karachi')},
+          {'city': 'Lahore', 'listings': '9', 'image': _cityImage('Lahore')},
+          {'city': 'Islamabad', 'listings': '6', 'image': _cityImage('Islamabad')},
+          {'city': 'Rawalpindi', 'listings': '4', 'image': _cityImage('Rawalpindi')},
+          {'city': 'Faisalabad', 'listings': '3', 'image': _cityImage('Faisalabad')},
+          {'city': 'Multan', 'listings': '2', 'image': _cityImage('Multan')},
+        ];
+        _isLoadingCities = false;
+      });
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _focusNode.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
   void _onSearchChanged(String value) {
-    setState(() => _query = value);
-  }
-
-  void _submitSearch(String term) {
-    if (term.trim().isEmpty) return;
     setState(() {
-      if (!_recentSearches.contains(term)) {
-        _recentSearches.insert(0, term);
-        if (_recentSearches.length > 6) _recentSearches.removeLast();
+      _query = value;
+    });
+
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+
+    if (value.trim().isEmpty) {
+      setState(() {
+        _suggestions.clear();
+        _isSearching = false;
+      });
+      return;
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      if (!mounted) return;
+      setState(() => _isSearching = true);
+      try {
+        int? catId;
+        if (_selectedCategory == 'Homes') catId = 1;
+        if (_selectedCategory == 'Plots') catId = 2;
+        if (_selectedCategory == 'Commercial') catId = 3;
+
+        final result = await _propertiesApiService.getProperties(
+          query: value,
+          purpose: _selectedPurpose == 'All' ? null : _selectedPurpose.toLowerCase(),
+          categoryId: catId,
+        );
+        if (mounted) {
+          setState(() {
+            _suggestions = result['properties'] as List<PropertyModel>;
+            _isSearching = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _isSearching = false;
+          });
+        }
       }
     });
-    // Navigate to details if a single result matches exactly
-    final match = _allProperties.firstWhere(
-      (p) => p['title'].toString().toLowerCase() == term.toLowerCase(),
-      orElse: () => <String, dynamic>{},
-    );
-    if (match.isNotEmpty) {
-      context.pushNamed('details', extra: match);
-    }
+  }
+
+  Future<void> _submitSearch(String term) async {
+    final cleanTerm = term.trim();
+    if (cleanTerm.isEmpty) return;
+
+    await SearchHistoryManager.addSearch(cleanTerm);
+    await _loadRecentSearches();
+
+    _searchController.text = cleanTerm;
+    _searchController.selection = TextSelection.fromPosition(TextPosition(offset: cleanTerm.length));
+    _onSearchChanged(cleanTerm);
   }
 
   @override
@@ -227,7 +301,10 @@ class _SearchScreenState extends State<SearchScreen>
                     GestureDetector(
                       onTap: () {
                         _searchController.clear();
-                        setState(() => _query = '');
+                        setState(() {
+                          _query = '';
+                          _suggestions.clear();
+                        });
                       },
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 10),
@@ -265,8 +342,10 @@ class _SearchScreenState extends State<SearchScreen>
                     .map((cat) {
                   final isSel = _selectedCategory == cat;
                   return GestureDetector(
-                    onTap: () =>
-                        setState(() => _selectedCategory = cat),
+                    onTap: () {
+                      setState(() => _selectedCategory = cat);
+                      if (_query.isNotEmpty) _onSearchChanged(_query);
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
                       margin: const EdgeInsets.only(right: 8),
@@ -308,14 +387,17 @@ class _SearchScreenState extends State<SearchScreen>
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: ['Buy', 'Rent'].map((p) {
+        children: ['All', 'Buy', 'Rent'].map((p) {
           final isSel = _selectedPurpose == p;
           return GestureDetector(
-            onTap: () => setState(() => _selectedPurpose = p),
+            onTap: () {
+              setState(() => _selectedPurpose = p);
+              if (_query.isNotEmpty) _onSearchChanged(_query);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 6),
+                  horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color:
                     isSel ? AppColors.white : Colors.transparent,
@@ -343,9 +425,10 @@ class _SearchScreenState extends State<SearchScreen>
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 32),
       children: [
-        // Recent searches
+        // Dynamic Recent searches
         if (_recentSearches.isNotEmpty) ...[
-          _buildSectionHeader('Recent Searches', trailingLabel: 'Clear All', onTrailingTap: () {
+          _buildSectionHeader('Recent Searches', trailingLabel: 'Clear All', onTrailingTap: () async {
+            await SearchHistoryManager.clearHistory();
             setState(() => _recentSearches.clear());
           }),
           ..._recentSearches.map((term) => _buildRecentItem(term)),
@@ -357,15 +440,10 @@ class _SearchScreenState extends State<SearchScreen>
         _buildCategoryGrid(),
         const SizedBox(height: 8),
 
-        // Popular cities
+        // Popular cities (Dynamic database query)
         _buildSectionHeader('Popular Cities'),
         _buildPopularCitiesGrid(),
-        const SizedBox(height: 8),
-
-        // Trending searches
-        _buildSectionHeader('Trending Searches'),
-        _buildTrendingChips(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
       ],
     );
   }
@@ -406,32 +484,38 @@ class _SearchScreenState extends State<SearchScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
-      child: ListTile(
-        dense: true,
-        leading: const Icon(Icons.history_rounded,
-            size: 18, color: AppColors.textMuted),
-        title: Text(
-          term,
-          style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMain),
+      child: Material(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.history_rounded,
+              size: 18, color: AppColors.textMuted),
+          title: Text(
+            term,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textMain),
+          ),
+          trailing: GestureDetector(
+            onTap: () async {
+              await SearchHistoryManager.removeSearch(term);
+              _loadRecentSearches();
+            },
+            child: const Icon(Icons.close_rounded,
+                size: 16, color: AppColors.textMuted),
+          ),
+          onTap: () {
+            _submitSearch(term);
+          },
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         ),
-        trailing: GestureDetector(
-          onTap: () => setState(() => _recentSearches.remove(term)),
-          child: const Icon(Icons.close_rounded,
-              size: 16, color: AppColors.textMuted),
-        ),
-        onTap: () {
-          _searchController.text = term;
-          setState(() => _query = term);
-        },
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       ),
     );
   }
@@ -449,11 +533,7 @@ class _SearchScreenState extends State<SearchScreen>
         children: _browseCategories.map((cat) {
           return GestureDetector(
             onTap: () {
-              setState(() {
-                _selectedCategory = cat['label']!;
-                _searchController.text = cat['label']!;
-                _query = cat['label']!;
-              });
+              _submitSearch(cat['label']!);
             },
             child: Container(
               decoration: BoxDecoration(
@@ -486,7 +566,7 @@ class _SearchScreenState extends State<SearchScreen>
                         Text(
                           cat['label']!,
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textMain,
                           ),
@@ -513,6 +593,13 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildPopularCitiesGrid() {
+    if (_isLoadingCities) {
+      return const SizedBox(
+        height: 120,
+        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      );
+    }
+
     return SizedBox(
       height: 120,
       child: ListView.builder(
@@ -524,8 +611,7 @@ class _SearchScreenState extends State<SearchScreen>
           final loc = _popularLocations[index];
           return GestureDetector(
             onTap: () {
-              _searchController.text = loc['city']!;
-              setState(() => _query = loc['city']!);
+              _submitSearch(loc['city']!);
             },
             child: Container(
               width: 120,
@@ -603,62 +689,17 @@ class _SearchScreenState extends State<SearchScreen>
     );
   }
 
-  Widget _buildTrendingChips() {
-    final trending = [
-      '5 Marla House',
-      'DHA Karachi',
-      'Bahria Town Lahore',
-      '1 Kanal Plot',
-      'Apartments Islamabad',
-      'Commercial Shops',
-      'Farm Houses',
-      '3 Bed Apartment',
-    ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: trending.map((term) {
-          return GestureDetector(
-            onTap: () {
-              _searchController.text = term;
-              setState(() => _query = term);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.trending_up_rounded,
-                      size: 13,
-                      color: AppColors.primary.withValues(alpha: 0.7)),
-                  const SizedBox(width: 5),
-                  Text(
-                    term,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textMain,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   // ── RESULTS VIEW (when query is typed) ─────────────
   Widget _buildResultsView() {
+    if (_isSearching) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
     final results = _suggestions;
 
     return Column(
@@ -682,9 +723,15 @@ class _SearchScreenState extends State<SearchScreen>
               ),
               if (results.isNotEmpty)
                 GestureDetector(
-                  onTap: () => _submitSearch(_query),
+                  onTap: () {
+                    _searchController.clear();
+                    setState(() {
+                      _query = '';
+                      _suggestions.clear();
+                    });
+                  },
                   child: const Text(
-                    'See All →',
+                    'Clear Search',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -705,7 +752,7 @@ class _SearchScreenState extends State<SearchScreen>
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
               itemCount: results.length,
               itemBuilder: (context, index) {
-                return _buildResultCard(results[index]);
+                return _buildResultCard(results[index].toMap());
               },
             ),
           ),
@@ -726,7 +773,7 @@ class _SearchScreenState extends State<SearchScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              'No results for "$_query"',
+              'No properties found for "$_query"',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -735,32 +782,12 @@ class _SearchScreenState extends State<SearchScreen>
             ),
             const SizedBox(height: 8),
             const Text(
-              'Try different keywords or check spelling',
+              'Try searching with a different location, keyword, or price range.',
               style: TextStyle(
-                  fontSize: 12, color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 24),
-            GestureDetector(
-              onTap: () {
-                _searchController.clear();
-                setState(() => _query = '');
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  'Clear Search',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
+                fontSize: 13,
+                color: AppColors.textMuted,
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -769,178 +796,120 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildResultCard(Map<String, dynamic> prop) {
-    Color badgeColor = AppColors.primary;
-    if (prop['badgeType'] == 'Diamond') badgeColor = AppColors.diamond;
-    if (prop['badgeType'] == 'Platinum') badgeColor = AppColors.platinum;
+    final int beds = int.tryParse(prop['beds']?.toString() ?? '') ?? 0;
+    final int baths = int.tryParse(prop['baths']?.toString() ?? '') ?? 0;
 
-    return GestureDetector(
-      onTap: () => context.pushNamed('details', extra: prop),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Thumbnail
-            Stack(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            context.pushNamed('details', extra: prop);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    bottomLeft: Radius.circular(14),
-                  ),
+                  borderRadius: BorderRadius.circular(10),
                   child: CachedNetworkImage(
-                    imageUrl: prop['image'].toString(),
-                    width: 110,
-                    height: 100,
+                    imageUrl: prop['thumbnail'] ?? prop['image'] ?? 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80',
+                    width: 90,
+                    height: 80,
                     fit: BoxFit.cover,
-                    placeholder: (ctx, url) =>
-                        Container(width: 110, height: 100, color: const Color(0xFFF1F5F9)),
+                    placeholder: (ctx, url) => Container(
+                        color: const Color(0xFFE2E8F0)),
                     errorWidget: (ctx, url, e) =>
-                        Container(width: 110, height: 100, color: const Color(0xFFF1F5F9)),
+                        Container(color: const Color(0xFFE2E8F0)),
                   ),
                 ),
-                if (prop['badgeType'] != 'Regular')
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: badgeColor,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        prop['badgeType'].toString().toUpperCase(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        prop['title']?.toString() ?? '',
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 7,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textMain,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ),
-              ],
-            ),
-            // Info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Text(
-                            'For ${prop['purpose']}',
+                      const SizedBox(height: 4),
+                      Text(
+                        prop['location']?.toString() ?? '',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _formatPrice(prop['price']),
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          prop['category'].toString(),
-                          style: const TextStyle(
-                            fontSize: 9,
-                            color: AppColors.textMuted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      prop['title'].toString(),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textMain,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_rounded,
-                            size: 11, color: AppColors.textMuted),
-                        const SizedBox(width: 2),
-                        Expanded(
-                          child: Text(
-                            prop['location'].toString(),
-                            style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textMuted),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          prop['price'].toString(),
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            if (prop['beds'] > 0) ...[
-                              const Icon(Icons.king_bed_outlined,
+                          Row(
+                            children: [
+                              if (beds > 0) ...[
+                                const Icon(Icons.king_bed_outlined,
+                                    size: 12,
+                                    color: AppColors.textMuted),
+                                const SizedBox(width: 2),
+                                Text('$beds',
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textMuted)),
+                                const SizedBox(width: 8),
+                              ],
+                              if (baths > 0) ...[
+                                const Icon(Icons.bathtub_outlined,
+                                    size: 12,
+                                    color: AppColors.textMuted),
+                                const SizedBox(width: 2),
+                                Text('$baths',
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textMuted)),
+                                const SizedBox(width: 8),
+                              ],
+                              const Icon(Icons.zoom_out_map_rounded,
                                   size: 12,
                                   color: AppColors.textMuted),
                               const SizedBox(width: 2),
-                              Text('${prop['beds']}',
+                              Text((prop['area'] ?? '').toString(),
                                   style: const TextStyle(
                                       fontSize: 10,
                                       color: AppColors.textMuted)),
-                              const SizedBox(width: 8),
                             ],
-                            const Icon(Icons.zoom_out_map_rounded,
-                                size: 12,
-                                color: AppColors.textMuted),
-                            const SizedBox(width: 2),
-                            Text(prop['area'].toString(),
-                                style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppColors.textMuted)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

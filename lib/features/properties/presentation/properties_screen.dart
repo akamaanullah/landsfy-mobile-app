@@ -2,17 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../home/data/models/property_model.dart';
+import '../data/services/properties_api_service.dart';
 
 class PropertiesScreen extends StatefulWidget {
-  const PropertiesScreen({super.key});
+  final Map<String, String>? initialFilters;
+  const PropertiesScreen({super.key, this.initialFilters});
 
   @override
   State<PropertiesScreen> createState() => _PropertiesScreenState();
 }
 
 class _PropertiesScreenState extends State<PropertiesScreen> {
+  final PropertiesApiService _propertiesApiService = PropertiesApiService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  
+  // API loading states
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<PropertyModel> _properties = [];
+  int _totalProperties = 0;
+  int _currentPage = 1;
 
   // Filter state
   String _selectedPurpose = 'All';
@@ -20,6 +31,21 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   String _selectedBeds = 'Any';
   String _minPrice = '';
   String _maxPrice = '';
+  String _selectedSort = 'newest';
+
+  String get _sortDisplayLabel {
+    switch (_selectedSort) {
+      case 'price_low':
+        return 'Lowest Price First';
+      case 'price_high':
+        return 'Highest Price First';
+      case 'oldest':
+        return 'Oldest First';
+      case 'newest':
+      default:
+        return 'Newest First';
+    }
+  }
 
   // Active filter count badge
   int get _activeFilterCount {
@@ -28,100 +54,161 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     if (_selectedCategory != 'All') count++;
     if (_selectedBeds != 'Any') count++;
     if (_minPrice.isNotEmpty || _maxPrice.isNotEmpty) count++;
+    if (_selectedSort != 'newest') count++;
     return count;
   }
 
-  final List<Map<String, dynamic>> _properties = [
-    {
-      'title': '240 Sq. Yd. Luxury Villa',
-      'location': 'Block A, Naya Nazimabad, Karachi',
-      'price': 'PKR 4.8 Crore',
-      'beds': 4,
-      'baths': 5,
-      'area': '240 Sq. Yd.',
-      'badgeType': 'Diamond',
-      'image': 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Buy',
-      'category': 'Homes',
-    },
-    {
-      'title': 'Premium 3-Bed Apartment',
-      'location': 'DHA Phase 6, Karachi',
-      'price': 'PKR 2.5 Lakh/mo',
-      'beds': 3,
-      'baths': 3,
-      'area': '2000 Sq. Ft.',
-      'badgeType': 'Platinum',
-      'image': 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Rent',
-      'category': 'Homes',
-    },
-    {
-      'title': '500 Sq. Yd. Prime Plot',
-      'location': 'Bahria Town Phase 2, Lahore',
-      'price': 'PKR 3.2 Crore',
-      'beds': 0,
-      'baths': 0,
-      'area': '500 Sq. Yd.',
-      'badgeType': 'Featured',
-      'image': 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Buy',
-      'category': 'Plots',
-    },
-    {
-      'title': 'Modern Office Suite',
-      'location': 'Blue Area, Islamabad',
-      'price': 'PKR 1.2 Lakh/mo',
-      'beds': 0,
-      'baths': 2,
-      'area': '1200 Sq. Ft.',
-      'badgeType': 'Regular',
-      'image': 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Rent',
-      'category': 'Commercial',
-    },
-    {
-      'title': '120 Sq. Yd. Brand New House',
-      'location': 'North Karachi, Karachi',
-      'price': 'PKR 1.95 Crore',
-      'beds': 3,
-      'baths': 4,
-      'area': '120 Sq. Yd.',
-      'badgeType': 'Regular',
-      'image': 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Buy',
-      'category': 'Homes',
-    },
-    {
-      'title': 'Penthouse with City View',
-      'location': 'Clifton Block 5, Karachi',
-      'price': 'PKR 8.5 Crore',
-      'beds': 5,
-      'baths': 6,
-      'area': '4500 Sq. Ft.',
-      'badgeType': 'Diamond',
-      'image': 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=600&q=80',
-      'purpose': 'Buy',
-      'category': 'Homes',
-    },
-  ];
+  late ScrollController _scrollController;
+  bool _isMoreLoading = false;
 
-  List<Map<String, dynamic>> get _filteredProperties {
-    return _properties.where((prop) {
-      final matchesPurpose = _selectedPurpose == 'All' || prop['purpose'] == _selectedPurpose;
-      final matchesCategory = _selectedCategory == 'All' || prop['category'] == _selectedCategory;
-      final matchesBeds = _selectedBeds == 'Any' ||
-          (_selectedBeds == '4+' ? prop['beds'] >= 4 : prop['beds'].toString() == _selectedBeds);
-      final matchesSearch = _searchQuery.isEmpty ||
-          prop['title'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          prop['location'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchesPurpose && matchesCategory && matchesBeds && matchesSearch;
-    }).toList();
+  Map<String, dynamic> _customQueryParameters = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+    _applyInitialFilters();
+    _loadProperties();
+  }
+
+  @override
+  void didUpdateWidget(covariant PropertiesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialFilters != oldWidget.initialFilters) {
+      _applyInitialFilters();
+      _loadProperties(isRefresh: true);
+    }
+  }
+
+  void _applyInitialFilters() {
+    final filters = widget.initialFilters;
+    if (filters != null && filters.isNotEmpty) {
+      _customQueryParameters = Map<String, dynamic>.from(filters);
+      
+      if (filters.containsKey('q')) {
+        _searchQuery = filters['q'] ?? '';
+        _searchController.text = _searchQuery;
+      }
+      if (filters.containsKey('purpose')) {
+        final p = filters['purpose'];
+        if (p != null) {
+          if (p.toLowerCase() == 'sell' || p.toLowerCase() == 'buy') {
+            _selectedPurpose = 'Buy';
+          } else if (p.toLowerCase() == 'rent') {
+            _selectedPurpose = 'Rent';
+          }
+        }
+      }
+      if (filters.containsKey('category_id') || filters.containsKey('cat_id')) {
+        final catId = int.tryParse(filters['category_id'] ?? filters['cat_id'] ?? '');
+        if (catId == 1) {
+          _selectedCategory = 'Homes';
+        } else if (catId == 2) {
+          _selectedCategory = 'Plots';
+        } else if (catId == 3) {
+          _selectedCategory = 'Commercial';
+        }
+      }
+      if (filters.containsKey('min_price')) {
+        _minPrice = filters['min_price'] ?? '';
+      }
+      if (filters.containsKey('max_price')) {
+        _maxPrice = filters['max_price'] ?? '';
+      }
+      if (filters.containsKey('sort')) {
+        _selectedSort = filters['sort'] ?? 'newest';
+      }
+    } else {
+      _customQueryParameters.clear();
+      _selectedSort = 'newest';
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoading && !_isMoreLoading && _properties.length < _totalProperties) {
+        _currentPage++;
+        _loadProperties();
+      }
+    }
+  }
+
+  Future<void> _loadProperties({bool isRefresh = false}) async {
+    if (isRefresh) {
+      setState(() {
+        _currentPage = 1;
+        _properties.clear();
+      });
+    }
+    try {
+      setState(() {
+        if (isRefresh || _properties.isEmpty) {
+          _isLoading = true;
+        } else {
+          _isMoreLoading = true;
+        }
+        _errorMessage = null;
+      });
+
+      int? categoryId;
+      if (_selectedCategory == 'Homes') categoryId = 1;
+      if (_selectedCategory == 'Plots') categoryId = 2;
+      if (_selectedCategory == 'Commercial') categoryId = 3;
+
+      double? minPriceVal = double.tryParse(_minPrice);
+      double? maxPriceVal = double.tryParse(_maxPrice);
+
+      final Map<String, dynamic> extra = Map<String, dynamic>.from(_customQueryParameters);
+      extra.remove('q');
+      extra.remove('purpose');
+      extra.remove('cat_id');
+      extra.remove('category_id');
+      extra.remove('min_price');
+      extra.remove('max_price');
+      extra.remove('page');
+      extra.remove('sort');
+
+      final result = await _propertiesApiService.getProperties(
+        query: _searchQuery,
+        purpose: _selectedPurpose == 'All' ? null : _selectedPurpose,
+        categoryId: categoryId,
+        minPrice: minPriceVal,
+        maxPrice: maxPriceVal,
+        sort: _selectedSort,
+        page: _currentPage,
+        extraParams: extra.isNotEmpty ? extra : null,
+      );
+
+      if (mounted) {
+        setState(() {
+          final List<PropertyModel> newItems = result['properties'] as List<PropertyModel>;
+          if (isRefresh) {
+            _properties = newItems;
+          } else {
+            _properties.addAll(newItems);
+          }
+          _totalProperties = result['total'] as int;
+          _isLoading = false;
+          _isMoreLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _isLoading = false;
+          _isMoreLoading = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -347,6 +434,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                                 _maxPrice = maxCtrl.text;
                               });
                               Navigator.pop(context);
+                              _loadProperties(isRefresh: true);
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
@@ -415,7 +503,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final listings = _filteredProperties;
+    final listings = _properties;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F8),
       body: SafeArea(
@@ -435,19 +523,38 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${listings.length} Properties Found',
+                    '$_totalProperties Properties Found',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textMuted,
                     ),
                   ),
-                  const Text(
-                    'Sort: Newest First',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                  GestureDetector(
+                    onTap: _showSortModal,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.sort_rounded, size: 14, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            _sortDisplayLabel,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down_rounded, size: 16, color: AppColors.primary),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -456,22 +563,35 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
 
             // Listings Grid
             Expanded(
-              child: listings.isEmpty
-                  ? _buildEmptyState()
-                  : GridView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 100),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.68,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
-                      itemCount: listings.length,
-                      itemBuilder: (context, index) {
-                        return _buildCompactCard(listings[index]);
-                      },
-                    ),
+              child: _isLoading && _properties.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? _buildErrorState()
+                      : listings.isEmpty
+                          ? _buildEmptyState()
+                          : GridView.builder(
+                              controller: _scrollController,
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 100),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.68,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                              itemCount: listings.length + (listings.length < _totalProperties ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == listings.length) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                return _buildCompactCard(listings[index]);
+                              },
+                            ),
             ),
           ],
         ),
@@ -568,6 +688,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: (v) => setState(() => _searchQuery = v),
+                    onSubmitted: (v) => _loadProperties(isRefresh: true),
                     style: const TextStyle(fontSize: 13, color: AppColors.black),
                     decoration: const InputDecoration(
                       hintText: 'Search properties, locations...',
@@ -582,6 +703,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     onTap: () {
                       _searchController.clear();
                       setState(() => _searchQuery = '');
+                      _loadProperties(isRefresh: true);
                     },
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 10),
@@ -603,16 +725,19 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     if (_selectedPurpose != 'All') {
       chips.add(_buildFilterChip('For $_selectedPurpose', () {
         setState(() => _selectedPurpose = 'All');
+        _loadProperties(isRefresh: true);
       }));
     }
     if (_selectedCategory != 'All') {
       chips.add(_buildFilterChip(_selectedCategory, () {
         setState(() => _selectedCategory = 'All');
+        _loadProperties(isRefresh: true);
       }));
     }
     if (_selectedBeds != 'Any') {
       chips.add(_buildFilterChip('$_selectedBeds Beds', () {
         setState(() => _selectedBeds = 'Any');
+        _loadProperties(isRefresh: true);
       }));
     }
     if (_minPrice.isNotEmpty || _maxPrice.isNotEmpty) {
@@ -621,6 +746,19 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           _minPrice = '';
           _maxPrice = '';
         });
+        _loadProperties(isRefresh: true);
+      }));
+    }
+    if (_selectedSort != 'newest') {
+      chips.add(_buildFilterChip('Sort: $_sortDisplayLabel', () {
+        setState(() => _selectedSort = 'newest');
+        _loadProperties(isRefresh: true);
+      }));
+    }
+    if (_customQueryParameters.containsKey('size')) {
+      chips.add(_buildFilterChip('Size: ${_customQueryParameters['size']}', () {
+        setState(() => _customQueryParameters.remove('size'));
+        _loadProperties(isRefresh: true);
       }));
     }
 
@@ -632,6 +770,59 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         physics: const BouncingScrollPhysics(),
         child: Row(children: chips),
       ),
+    );
+  }
+
+  void _showSortModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.sort_rounded, color: AppColors.primary, size: 20),
+                    SizedBox(width: 8),
+                    Text('Sort Properties By', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+              ),
+              const Divider(),
+              _buildSortOptionTile('Newest First', 'newest', ctx),
+              _buildSortOptionTile('Lowest Price First', 'price_low', ctx),
+              _buildSortOptionTile('Highest Price First', 'price_high', ctx),
+              _buildSortOptionTile('Oldest First', 'oldest', ctx),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortOptionTile(String label, String sortVal, BuildContext modalCtx) {
+    final isSelected = _selectedSort == sortVal;
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? AppColors.primary : AppColors.textMain,
+        ),
+      ),
+      trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: AppColors.primary) : null,
+      onTap: () {
+        Navigator.pop(modalCtx);
+        setState(() => _selectedSort = sortVal);
+        _loadProperties(isRefresh: true);
+      },
     );
   }
 
@@ -692,6 +883,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                 _searchQuery = '';
                 _searchController.clear();
               });
+              _loadProperties(isRefresh: true);
             },
             child: const Text(
               'Clear all filters',
@@ -707,13 +899,13 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     );
   }
 
-  Widget _buildCompactCard(Map<String, dynamic> prop) {
+  Widget _buildCompactCard(PropertyModel prop) {
     Color badgeColor = AppColors.primary;
-    if (prop['badgeType'] == 'Diamond') badgeColor = AppColors.diamond;
-    if (prop['badgeType'] == 'Platinum') badgeColor = AppColors.platinum;
+    if (prop.badgeType == 'Diamond') badgeColor = AppColors.diamond;
+    if (prop.badgeType == 'Platinum') badgeColor = AppColors.platinum;
 
     return GestureDetector(
-      onTap: () => context.pushNamed('details', extra: prop),
+      onTap: () => context.pushNamed('details', extra: prop.toMap()),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
@@ -738,27 +930,33 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     topLeft: Radius.circular(14),
                     topRight: Radius.circular(14),
                   ),
-                  child: CachedNetworkImage(
-                    imageUrl: prop['image'].toString(),
-                    height: 130,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      height: 130,
-                      color: const Color(0xFFF1F5F9),
-                      child: const Center(
-                        child: Icon(Icons.home_outlined, color: AppColors.border, size: 32),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      height: 130,
-                      color: const Color(0xFFF1F5F9),
-                      child: const Icon(Icons.home, color: AppColors.border),
-                    ),
-                  ),
+                  child: prop.fullThumbnailUrl != null && prop.fullThumbnailUrl!.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: prop.fullThumbnailUrl!,
+                          height: 130,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            height: 130,
+                            color: const Color(0xFFF1F5F9),
+                            child: const Center(
+                              child: Icon(Icons.home_outlined, color: AppColors.border, size: 32),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            height: 130,
+                            color: const Color(0xFFF1F5F9),
+                            child: const Icon(Icons.home, color: AppColors.border),
+                          ),
+                        )
+                      : Container(
+                          height: 130,
+                          color: const Color(0xFFF1F5F9),
+                          child: const Icon(Icons.home, color: AppColors.border),
+                        ),
                 ),
                 // Badge
-                if (prop['badgeType'] != 'Regular')
+                if (prop.badgeType != 'Regular')
                   Positioned(
                     top: 8,
                     left: 8,
@@ -769,7 +967,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        prop['badgeType'].toString().toUpperCase(),
+                        prop.badgeType.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 8,
@@ -790,7 +988,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      prop['purpose'].toString().toUpperCase(),
+                      (prop.purpose == 'sell' ? 'BUY' : 'RENT'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 8,
@@ -827,7 +1025,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                   children: [
                     // Price
                     Text(
-                      prop['price'].toString(),
+                      prop.formattedPrice,
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w900,
@@ -839,7 +1037,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     const SizedBox(height: 3),
                     // Title
                     Text(
-                      prop['title'].toString(),
+                      prop.title,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 11,
@@ -856,7 +1054,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                         const SizedBox(width: 2),
                         Expanded(
                           child: Text(
-                            prop['location'].toString(),
+                            prop.fullLocation,
                             style: const TextStyle(
                               fontSize: 10,
                               color: AppColors.textMuted,
@@ -871,20 +1069,20 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     // Specs row
                     Row(
                       children: [
-                        if (prop['beds'] > 0) ...[
+                        if (prop.beds > 0) ...[
                           const Icon(Icons.king_bed_outlined, size: 11, color: AppColors.primary),
                           const SizedBox(width: 2),
                           Text(
-                            '${prop['beds']}',
+                            '${prop.beds}',
                             style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(width: 6),
                         ],
-                        if (prop['baths'] > 0) ...[
+                        if (prop.baths > 0) ...[
                           const Icon(Icons.bathtub_outlined, size: 11, color: AppColors.primary),
                           const SizedBox(width: 2),
                           Text(
-                            '${prop['baths']}',
+                            '${prop.baths}',
                             style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(width: 6),
@@ -893,7 +1091,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                         const SizedBox(width: 2),
                         Expanded(
                           child: Text(
-                            prop['area'].toString(),
+                            prop.areaDisplay,
                             style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -903,6 +1101,36 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.wifi_off_rounded, color: Colors.redAccent, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage ?? 'Network error occurred',
+              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _loadProperties(isRefresh: true),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
               ),
             ),
           ],

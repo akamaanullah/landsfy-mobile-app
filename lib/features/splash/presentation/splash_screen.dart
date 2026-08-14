@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -10,36 +11,32 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late AnimationController _animController;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _fadeAnim;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-      ),
+    _scaleAnim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutBack,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.8, curve: Curves.elasticOut),
-      ),
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeIn,
     );
 
-    _controller.forward();
+    _animController.forward();
 
-    // Navigate to Home screen after initialization / 3 seconds delay
-    Future.delayed(const Duration(seconds: 3), () {
+    _timer = Timer(const Duration(milliseconds: 2600), () {
       if (mounted) {
         context.go('/home');
       }
@@ -48,7 +45,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
-    _controller.dispose();
+    _timer?.cancel();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -60,122 +58,167 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
               AppColors.primary,
               AppColors.primaryLight,
+              Color(0xFF170A30),
             ],
           ),
         ),
         child: Stack(
-          alignment: Alignment.center,
           children: [
-            // Floating background blobs for premium aesthetic
+            // Background Decorative Watermark Circles
             Positioned(
-              top: -50,
-              right: -50,
+              top: -70,
+              right: -70,
               child: Container(
-                width: 200,
-                height: 200,
+                width: 240,
+                height: 240,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: AppColors.accent.withValues(alpha: 0.05),
                 ),
               ),
             ),
             Positioned(
-              bottom: -80,
-              left: -80,
+              bottom: -90,
+              left: -90,
               child: Container(
                 width: 300,
                 height: 300,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: AppColors.accent.withValues(alpha: 0.04),
                 ),
               ),
             ),
-            // Logo & Title
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: _fadeAnimation.value,
-                  child: Transform.scale(
-                    scale: _scaleAnimation.value,
+
+            // Main Centered Content
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Animated Logo Emblem
+                  ScaleTransition(
+                    scale: _scaleAnim,
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.6), width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accent.withValues(alpha: 0.25),
+                            blurRadius: 35,
+                            spreadRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(100),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Animated Titles & Subtitles
+                  FadeTransition(
+                    opacity: _fadeAnim,
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // App Logo Icon (Stylized roof/location pin)
+                        // Official Verified Badge
                         Container(
-                          width: 100,
-                          height: 100,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: AppColors.white,
-                            borderRadius: BorderRadius.circular(24),
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.maps_home_work_rounded,
-                              size: 56,
-                              color: AppColors.primary,
+                          child: const Text(
+                            "🇵🇰 PAKISTAN'S VERIFIED REAL ESTATE",
+                            style: TextStyle(
+                              color: AppColors.black,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10.5,
+                              letterSpacing: 0.8,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        // App Title
-                        Text(
-                          'Landsfy',
-                          style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                            color: AppColors.white,
-                            letterSpacing: 1.5,
+                        const SizedBox(height: 16),
+
+                        // Main Title
+                        const Text(
+                          "LANDSFY.COM",
+                          style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 2.0,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        // Subtitle
+                        const SizedBox(height: 6),
+
+                        // Subtitle Tagline
                         Text(
-                          'Buy, Sell & Rent Properties',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.white.withValues(alpha: 0.8),
+                          "Buy, Sell & Rent Verified Properties",
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w600,
                             letterSpacing: 0.5,
                           ),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
-            ),
-            // Subtle Loading indicator at bottom
-            Positioned(
-              bottom: 80,
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
-                      strokeWidth: 2.5,
-                      backgroundColor: AppColors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Version 1.0.0',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.white.withValues(alpha: 0.5),
-                    ),
-                  ),
                 ],
+              ),
+            ),
+
+            // Footer Loading Indicator & Copyright
+            Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: AppColors.accent,
+                        strokeWidth: 2.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "© 2026 LANDSFY Real Estate. All Rights Reserved.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
